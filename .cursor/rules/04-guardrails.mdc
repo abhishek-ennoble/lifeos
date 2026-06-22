@@ -1,0 +1,138 @@
+---
+description: What NOT to build, anti-patterns, coding conventions, and privacy rules
+alwaysApply: true
+---
+
+# LifeOS — Guardrails & Conventions
+
+## What NOT to Build in MVP (strictly deferred)
+
+If asked to build any of these, decline and note it's a future phase:
+
+| Feature | Why deferred | Future home |
+|---------|-------------|-------------|
+| IdeaBox research agent | Separate app, different lifecycle | IdeaBox app (ennoble.ai) |
+| MedTracker family/caregiver loop | Safety-critical, separate product | MedTracker app |
+| Finance analysis or investment advice | Phase 2 | Finance OS plugin |
+| Travel / trek planning agent | Phase 2 | Travel Agent plugin |
+| Multi-user accounts / teams | Phase 2 | Platform layer |
+| Sharing / delegation | Phase 2 | Platform layer |
+| Social features | Not in scope ever for core | N/A |
+| iOS build | After Android validated | Same codebase, just EAS |
+| Home screen widget | Week 4 only, after core works | expo-widgets |
+| On-device LLM | Nice to have, complex | Phase 2 upgrade |
+
+---
+
+## Agent Anti-Patterns (do not build these)
+
+Agents add cost, latency, and complexity. Use them ONLY for multi-step external
+research. These are NOT agent tasks:
+
+❌ Scooty repair reminder → just a `task` entry + one reminder row
+❌ "Keys in my bag" → just a `note` entry with expires_at = +24h
+❌ Medicine 3× daily → `health` entry + 3 reminder rows in DB
+❌ CCAF exam prep → `task` with due_at = exam date + learning entry for study
+❌ Family member notes → `note` entries tagged with person name in metadata
+❌ Guitar daily practice → `health` entry with daily recurrence rule
+
+**Rule: if the task has a known answer requiring no external data or multi-step
+reasoning, it is a database operation, not an agent call.**
+
+---
+
+## Privacy Rules (non-negotiable)
+
+1. **No raw audio in Supabase.** Transcribe first (Whisper API), store text only.
+   Audio files live in memory only, deleted after transcription.
+
+2. **Row Level Security on all tables.** Every policy must include:
+   `USING (auth.uid() = user_id)` or equivalent. Never expose other users' data.
+
+3. **API keys server-side only.** ANTHROPIC_API_KEY and OPENAI_API_KEY live in
+   Supabase Edge Function secrets. Never in the Expo app bundle or EXPO_PUBLIC_.
+
+4. **No analytics SDKs.** No Firebase Analytics, Mixpanel, Amplitude, or similar.
+   Medicine, family data, and financial notes are private. Zero telemetry.
+
+5. **.env in .gitignore from day 1.** Add it before the first commit, not after.
+
+6. **Sensitive domain data (health, note with personal info) never logged to console
+   in production.** Use `__DEV__` guards around all debug logging.
+
+---
+
+## Coding Conventions
+
+### TypeScript
+- Strict mode always. No `any`. Use `unknown` and narrow with type guards.
+- All Supabase queries use the generated types from `supabase gen types typescript`
+- Domain metadata typed with discriminated unions, not loose `jsonb`
+
+### Components
+- Functional components only. No class components.
+- One component per file. File name = component name.
+- Props always typed with an interface, e.g. `interface EntryCardProps { ... }`
+
+### State
+- Local UI state: `useState` / `useReducer`
+- Server state: custom hooks (`useEntries`, `useBriefing`) that wrap Supabase queries
+- No Redux, no Zustand for MVP — keep it simple
+
+### Error handling
+- Every async function has try/catch
+- Errors surface to user via toast notification (expo-toast or react-native-toast)
+- Never silently swallow errors
+
+### Naming
+- Hooks: `useXxx` (e.g. `useEntries`, `useBriefing`)
+- Screens: `XxxScreen` (e.g. `TasksScreen`, `HealthScreen`)
+- Cards/list items: `XxxCard` (e.g. `EntryCard`, `LearningCard`)
+- Edge functions: kebab-case directories (e.g. `classify-entry/`, `morning-briefing/`)
+- Constants: UPPER_SNAKE_CASE (e.g. `DOMAINS`, `MODEL_MAP`)
+
+### Domain constants (always use this, never hardcode strings)
+```typescript
+// constants/domains.ts
+export const DOMAINS = {
+  HEALTH:   'health',
+  TASK:     'task',
+  LEARNING: 'learning',
+  IDEA:     'idea',
+  NOTE:     'note',
+} as const
+
+export type Domain = typeof DOMAINS[keyof typeof DOMAINS]
+```
+
+### Offline-first pattern
+- Read: expo-sqlite first → render optimistically → sync Supabase in background
+- Write: expo-sqlite immediately (optimistic) → Supabase in background
+- Conflict resolution: last-write-wins (acceptable for single-user personal app)
+
+### Git
+- Commit messages imperative: "Add voice input component" not "Added voice input"
+- Never commit .env, node_modules, .expo, or generated Supabase types (add to .gitignore)
+- Branch per feature: `feature/voice-input`, `feature/health-reminders`
+
+---
+
+## Environmental Responsibility
+
+- **Default to Haiku.** Only escalate to Sonnet on explicit user request.
+- **No background AI polling.** AI fires on user action or scheduled cron only.
+- **Batch non-urgent jobs** (spaced rep updates, anti-entropy) in pg_cron at off-peak.
+- **Choose green Supabase region** — EU West (Ireland) has cleaner energy than ap-southeast.
+- **Never add telemetry that sends data to third parties** without user awareness.
+
+---
+
+## Code Quality Checklist (before marking any task done)
+
+- [ ] TypeScript compiles with no errors (`npx tsc --noEmit`)
+- [ ] No hardcoded domain strings (use DOMAINS constant)
+- [ ] Async functions have try/catch
+- [ ] No console.log in code that touches health/medicine/personal data
+- [ ] RLS policies tested (verify a second user cannot read first user's data)
+- [ ] Offline path tested (airplane mode on device)
+- [ ] Push notification tested on real Android device (not simulator)

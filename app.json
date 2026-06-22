@@ -1,16 +1,19 @@
 {
   "expo": {
-    "name": "_expo_tmp",
-    "slug": "_expo_tmp",
+    "name": "LifeOS",
+    "slug": "lifeos",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "expotmp",
+    "scheme": "lifeos",
     "userInterfaceStyle": "automatic",
+    "platforms": ["android", "ios"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.ennoble.lifeos"
     },
     "android": {
+      "package": "ai.ennoble.lifeos",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -21,17 +24,31 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "output": "single"
     },
     "plugins": [
       "expo-router",
+      "expo-sqlite",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2563EB"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "LifeOS needs microphone access for voice capture."
         }
       ]
     ],

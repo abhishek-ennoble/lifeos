@@ -1,0 +1,208 @@
+---
+description: AI usage rules, domain routing logic, and metadata shapes
+alwaysApply: true
+---
+
+# LifeOS — AI Rules & Domain Model
+
+## Model Selection (follow this exactly)
+
+| Task | Model | Reason |
+|------|-------|--------|
+| Classify user input → domain + fields | Haiku | Simple extraction, runs 50×/day |
+| Generate morning briefing text | Haiku | Narrative from structured data |
+| Extract time, date, recurrence from text | Haiku | Entity extraction |
+| Tag ideas, detect priority | Haiku | Classification |
+| "What should I focus on today?" | Sonnet | Reasoning across many entries |
+| Prioritize across domains | Sonnet | Nuanced judgment needed |
+| AI chat conversation | Sonnet | Context + multi-turn reasoning |
+| Anti-entropy review | Sonnet | Behavior pattern analysis |
+
+**Rule: never call Sonnet for what Haiku can do. Cost difference is ~10×.**
+**Rule: Sonnet only fires on explicit user request, never proactively.**
+
+---
+
+## AI Model Router (lib/ai.ts pattern)
+
+```typescript
+type AITask = 'classify' | 'briefing' | 'chat' | 'prioritize' | 'anti-entropy'
+
+const MODEL_MAP: Record<AITask, string> = {
+  classify:      'claude-haiku-4-5-20251001',
+  briefing:      'claude-haiku-4-5-20251001',
+  chat:          'claude-sonnet-4-6',
+  prioritize:    'claude-sonnet-4-6',
+  'anti-entropy': 'claude-sonnet-4-6',
+}
+
+export function getModel(task: AITask): string {
+  return MODEL_MAP[task]
+}
+```
+
+---
+
+## Classification Edge Function Contract
+
+**Input** (POST /functions/v1/classify-entry):
+```json
+{
+  "raw_input": "I need to take my diabetes medicine every day at 8am, 1pm and 8pm"
+}
+```
+
+**Output** (Claude Haiku must return valid JSON):
+```json
+{
+  "domain": "health",
+  "title": "Diabetes medicine",
+  "description": "Daily medication for diabetes management",
+  "priority": "high",
+  "is_recurring": true,
+  "recurrence_rule": "0 8,13,20 * * *",
+  "metadata": {
+    "dose": "as prescribed",
+    "frequency": "3x daily",
+    "times": ["08:00", "13:00", "20:00"]
+  },
+  "expires_at": null,
+  "due_at": null,
+  "confidence": 0.97
+}
+```
+
+**System prompt for classification (use this verbatim):**
+```
+You are the AI router for a personal life management app called LifeOS.
+Your job: read the user's input and extract structured data.
+
+Domains:
+- health: medicine, daily habits, recurring physical routines (guitar practice counts)
+- task: actionable items, errands, one-time or recurring work (scooty repair, CCAF prep)
+- learning: skills, courses, long-term knowledge goals (music theory, Python, spiritual learning)
+- idea: conceptual seeds, product/business/personal ideas ("what if we build X")
+- note: ephemeral context facts that expire (location of keys, temporary reminders)
+
+Rules:
+- If uncertain, prefer "task" over "note"
+- "note" only for things with no action and very short life (under 48h)
+- Extract recurrence_rule as cron string when a recurring pattern is detected
+- Extract times as "HH:MM" in 24h format
+- Set priority "high" for health/medicine, "medium" default, "low" for vague future items
+- Always return valid JSON matching the schema. No prose, no explanation.
+- If idea: set research_ready: false always (research is a future feature)
+```
+
+---
+
+## Domain Metadata Shapes
+
+### health
+```typescript
+{
+  name: string           // "Diabetes medicine", "Guitar practice"
+  dose?: string          // "500mg", "as prescribed" (medicine only)
+  frequency: string      // "3x daily", "daily", "weekly"
+  times: string[]        // ["08:00", "13:00", "20:00"]
+}
+```
+
+### task
+```typescript
+{
+  subdomain: 'errand' | 'work' | 'personal'
+  ephemeral: boolean     // true = expires_at should be set
+}
+```
+
+### learning
+```typescript
+{
+  horizon: 'lifetime' | 'long' | 'short'   // lifetime = no end, long = months-years
+  daily_target_mins?: number               // 30 = 30 min/day target
+  resource?: string                        // course name, book, teacher
+}
+```
+
+### idea
+```typescript
+{
+  tag: 'personal' | 'business' | 'product'
+  research_ready: boolean   // always false in MVP — flagged for future IdeaBox
+  voice_note_url?: string   // Supabase Storage URL if voice note attached
+}
+```
+
+### note
+```typescript
+{
+  expires_in_hours: 12 | 24 | 48 | 168    // default: 24
+}
+```
+
+---
+
+## Spaced Repetition (lib/spaced-repetition.ts)
+
+Use SM-2 algorithm for learning goals. After each session log:
+- If quality ≥ 3 (reviewed well): increase interval
+- If quality < 3 (forgot/struggled): reset interval to 1 day
+
+```typescript
+// Simplified SM-2
+export function nextReviewDate(
+  lastReviewedAt: Date,
+  intervalDays: number,
+  quality: 0 | 1 | 2 | 3 | 4 | 5  // 0=blackout, 5=perfect
+): Date {
+  const newInterval = quality >= 3
+    ? Math.round(intervalDays * 2.5)
+    : 1
+  const next = new Date(lastReviewedAt)
+  next.setDate(next.getDate() + newInterval)
+  return next
+}
+```
+
+pg_cron runs nightly to check `last_reviewed_at + interval_days < now()` and
+schedules a push notification for due learning items.
+
+---
+
+## Morning Briefing Prompt
+
+Run daily at 7:00am via pg_cron → Edge Function → Claude Haiku → push notification.
+
+```
+You are generating a personal morning briefing for Abhishek.
+Tone: warm, direct, like a thoughtful friend who knows everything going on.
+Length: 150-200 words maximum. No headers. Flowing prose.
+
+Data provided (JSON):
+- overdue: entries past due_at that are not done
+- today_reminders: reminders firing today
+- high_priority: top 3 high-priority pending entries
+- learning_due: learning goals due for review today
+- streak_updates: habits with notable streaks
+
+Generate a concise briefing that:
+1. Acknowledges one positive (streak, completion)
+2. Surfaces the 2-3 most important things for today
+3. Flags anything overdue that matters
+4. Ends with one grounding sentence
+
+Do not list everything. Prioritize ruthlessly. Be human.
+```
+
+---
+
+## Anti-Entropy Job (weekly, Sunday 9am)
+
+Finds entries where:
+- status = 'pending'
+- updated_at < now() - interval '30 days'
+- domain in ('task', 'learning', 'idea')
+
+Generates in-app notification: "You have 8 things that haven't moved in 30+ days.
+Want to review them?" → opens review screen → user swipes each: Keep / Done / Delete.

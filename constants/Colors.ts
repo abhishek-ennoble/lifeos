@@ -1,19 +1,23 @@
-const tintColorLight = '#2f95dc';
-const tintColorDark = '#fff';
+/**
+ * Legacy color shape consumed by components/Themed.tsx and the scaffold helpers.
+ * Values are mirrored from constants/theme.ts so the whole app reads from one
+ * palette. Prefer hooks/useTheme.ts for new code.
+ */
+import { darkTheme, lightTheme } from '@/constants/theme';
 
 export default {
   light: {
-    text: '#000',
-    background: '#fff',
-    tint: tintColorLight,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorLight,
+    text: lightTheme.textPrimary,
+    background: lightTheme.bg,
+    tint: lightTheme.primary,
+    tabIconDefault: lightTheme.textSecondary,
+    tabIconSelected: lightTheme.primary,
   },
   dark: {
-    text: '#fff',
-    background: '#000',
-    tint: tintColorDark,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorDark,
+    text: darkTheme.textPrimary,
+    background: darkTheme.bg,
+    tint: darkTheme.primary,
+    tabIconDefault: darkTheme.textSecondary,
+    tabIconSelected: darkTheme.primary,
   },
 };

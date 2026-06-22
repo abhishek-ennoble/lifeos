@@ -1,0 +1,155 @@
+---
+description: Tech stack, architecture decisions, project structure, and DB schema
+alwaysApply: true
+---
+
+# LifeOS — Architecture
+
+## Tech Stack (decided — do not deviate without strong reason)
+
+### Frontend
+- **React Native + Expo SDK 52** — cross-platform Android + iOS from one codebase
+- **Expo Router** — file-based navigation (like Next.js but for mobile)
+- **TypeScript strict mode** — no `any` types, ever
+- **NativeWind** — Tailwind CSS utility classes for React Native
+- **expo-av** — voice recording
+- **expo-notifications** — push notifications (FCM on Android)
+- **expo-sqlite** — local offline storage (offline-first architecture)
+
+### AI
+- **Claude Haiku** → classification, entity extraction, morning briefing (cheap, fast)
+- **Claude Sonnet** → AI chat, prioritization, cross-entry reasoning (on-demand only)
+- **Whisper API (OpenAI)** → voice audio → text transcription
+- **Supabase Edge Functions** → server-side AI orchestration (keeps API keys off device)
+
+### Backend
+- **Supabase** (NOT AWS — too much DevOps overhead for this scale)
+  - Postgres — primary relational database
+  - Row Level Security — all data scoped to single user
+  - Edge Functions (Deno runtime) — AI calls, scheduled jobs
+  - pg_cron — morning briefing at 7am, anti-entropy weekly, spaced rep updates
+  - Realtime — for cross-device sync
+
+### Dev Tooling
+- **Cursor** — primary IDE for writing code
+- **Claude Code** — terminal agent for scaffolding, migrations, debugging
+- **Expo Go** — test on real device during development (no build needed)
+- **EAS Build** — generate APK/IPA when ready to ship
+- **GitHub** — version control, never commit .env
+
+---
+
+## Project Structure
+
+```
+lifeos/
+├── app/                            # Expo Router pages
+│   ├── (tabs)/
+│   │   ├── index.tsx               # Home: today's briefing + quick capture
+│   │   ├── tasks.tsx               # Task list + ephemeral notes
+│   │   ├── health.tsx              # Medicine + daily habits
+│   │   ├── learning.tsx            # Learning goals + spaced repetition
+│   │   └── ideas.tsx               # Idea seeds list
+│   ├── chat.tsx                    # AI conversation screen
+│   └── _layout.tsx                 # Root layout + navigation
+│
+├── components/
+│   ├── VoiceInput.tsx              # Mic button → record → transcribe → classify
+│   ├── EntryCard.tsx               # Shared card for all domain entries
+│   ├── MorningBriefing.tsx         # Today's AI summary card
+│   ├── DomainIcon.tsx              # Icon per domain
+│   └── BrainDumpModal.tsx          # 2am frictionless capture overlay
+│
+├── lib/
+│   ├── ai.ts                       # Claude client + model router (Haiku vs Sonnet)
+│   ├── supabase.ts                 # Typed Supabase client
+│   ├── whisper.ts                  # Audio upload + transcription
+│   ├── notifications.ts            # Schedule/cancel push notifications
+│   └── spaced-repetition.ts        # Next review date calculation (SM-2 algorithm)
+│
+├── hooks/
+│   ├── useEntries.ts               # CRUD + sync for entries
+│   ├── useBriefing.ts              # Fetch today's briefing
+│   └── useReminders.ts             # Reminder management
+│
+├── constants/
+│   └── domains.ts                  # DOMAINS constant — never hardcode domain strings
+│
+└── supabase/
+    ├── migrations/                 # SQL files, run via Supabase CLI
+    └── functions/
+        ├── classify-entry/         # POST: raw text → domain + fields
+        ├── morning-briefing/       # Cron: pull entries → Claude → push notification
+        └── anti-entropy/           # Cron: flag entries untouched 30+ days
+```
+
+---
+
+## Database Schema
+
+```sql
+-- Core table: all user input lives here
+CREATE TABLE entries (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  raw_input        text,                    -- original voice transcript or typed text
+  domain           text NOT NULL,           -- health | task | learning | idea | note
+  title            text NOT NULL,
+  description      text,
+  metadata         jsonb,                   -- domain-specific fields (see domains doc)
+  priority         text DEFAULT 'medium',  -- high | medium | low
+  status           text DEFAULT 'pending', -- pending | done | archived | snoozed
+  is_recurring     boolean DEFAULT false,
+  recurrence_rule  text,                   -- cron string: "0 8,13,20 * * *"
+  due_at           timestamptz,
+  expires_at       timestamptz,            -- for ephemeral notes (null = no expiry)
+  last_reviewed_at timestamptz,            -- for spaced repetition
+  created_at       timestamptz DEFAULT now(),
+  updated_at       timestamptz DEFAULT now()
+);
+
+-- Push notification scheduling
+CREATE TABLE reminders (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  entry_id         uuid REFERENCES entries(id) ON DELETE CASCADE,
+  fire_at          timestamptz NOT NULL,
+  sent_at          timestamptz,            -- null = not yet sent
+  acknowledged_at  timestamptz            -- null = not yet acted on
+);
+
+-- Daily AI briefing
+CREATE TABLE briefings (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  content       text NOT NULL,             -- AI-generated narrative text
+  date          date UNIQUE NOT NULL,      -- one per day
+  generated_at  timestamptz DEFAULT now()
+);
+
+-- RLS: enable on all tables, policy = auth.uid() owns all rows
+ALTER TABLE entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE briefings ENABLE ROW LEVEL SECURITY;
+```
+
+---
+
+## Offline-First Pattern
+
+All reads: expo-sqlite first → render → then sync Supabase in background
+All writes: write to expo-sqlite immediately → optimistic UI → sync to Supabase
+On reconnect: pull diffs, resolve conflicts (last-write-wins for personal use)
+
+This ensures the app works fully during poor connectivity (Tier 2/3 use case).
+
+---
+
+## Environment Variables Required
+
+```
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+ANTHROPIC_API_KEY=          # server-side only (edge functions), never in app bundle
+OPENAI_API_KEY=             # server-side only (Whisper), never in app bundle
+```
+
+API keys for Claude and Whisper must ONLY exist in Supabase Edge Function secrets.
+Never put them in the Expo app bundle. Use EXPO_PUBLIC_ prefix only for public keys.

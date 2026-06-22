@@ -1,0 +1,18 @@
+-- pg_cron jobs (run after enabling pg_cron extension in Supabase dashboard)
+-- Morning briefing at 7:00 AM UTC (adjust for your timezone)
+-- SELECT cron.schedule('morning-briefing', '0 7 * * *', $$
+--   SELECT net.http_post(
+--     url := current_setting('app.settings.supabase_url') || '/functions/v1/morning-briefing',
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')),
+--     body := '{}'::jsonb
+--   );
+-- $$);
+
+-- Anti-entropy weekly on Sunday 9:00 AM UTC
+-- SELECT cron.schedule('anti-entropy', '0 9 * * 0', $$
+--   SELECT net.http_post(
+--     url := current_setting('app.settings.supabase_url') || '/functions/v1/anti-entropy',
+--     headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')),
+--     body := '{}'::jsonb
+--   );
+-- $$);

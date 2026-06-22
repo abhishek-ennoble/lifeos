@@ -1,0 +1,25 @@
+# Minimal Supabase CLI config for LifeOS (linked remote project).
+# See: https://supabase.com/docs/guides/cli/config
+
+[db]
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:8081"
+additional_redirect_urls = ["exp://127.0.0.1:8081"]
+
+[functions.classify-entry]
+verify_jwt = true
+
+[functions.morning-briefing]
+verify_jwt = true
+
+[functions.anti-entropy]
+verify_jwt = true
+
+[functions.transcribe-audio]
+verify_jwt = true
+
+[functions.ai-chat]
+verify_jwt = true

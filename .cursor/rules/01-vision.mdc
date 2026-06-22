@@ -1,0 +1,71 @@
+---
+description: Project vision, mission, and philosophy for LifeOS
+alwaysApply: true
+---
+
+# LifeOS — Project Vision
+
+## What this is
+
+A **Personal Life Operating System** — a React Native + Expo mobile app that accepts
+voice or text input, uses AI to classify and route information into 5 structured
+domains, sends smart reminders, and generates a personalized morning briefing.
+
+Built first for Abhishek (personal use, June 2026), designed to scale into a product
+and eventually a plugin platform under ennoble.ai.
+
+**This is NOT a to-do app.** It is personal infrastructure — the AI-powered
+equivalent of a personal assistant available 24/7, including at 2am.
+
+---
+
+## Mission: Enabling the Noble
+
+Primary target: someone in Tier 2/3 India — same life complexity as anyone (health,
+work, family, learning, ideas, finance) but without the organizational tools that
+privileged people have access to.
+
+Every design decision must pass this test:
+**Does this work on a mid-range Android, with patchy internet, for someone more
+comfortable speaking Hindi than typing English?**
+
+---
+
+## The 5 Domains
+
+Everything the user says or types routes into one of these:
+
+| Domain | What it is | Signal words |
+|--------|-----------|--------------|
+| `health` | Medicine, daily habits, recurring body routines | medicine, dose, daily, habit |
+| `task` | Actionable items, one-time or recurring, errands | do, fix, repair, call, buy, book |
+| `learning` | Skills, courses, long-term knowledge goals | learn, study, course, skill, practice |
+| `idea` | Concepts, product seeds, "what if" thoughts | idea, what if, build, imagine, create |
+| `note` | Ephemeral context facts (auto-expire 24h) | remember that, FYI, keys, location |
+
+Default: if uncertain → `task`. Short context-only text with no action → `note`.
+
+---
+
+## MVP Features (what we are building now)
+
+1. Universal Inbox — speak or type anything, AI classifies and routes
+2. Voice capture — expo-av → Whisper transcription → classify
+3. Health reminders — medicine 3×/day push notifications, habit streaks
+4. Tasks — one-time, recurring, ephemeral (auto-expire), priority
+5. Learning goals — spaced repetition, session log, streaks
+6. Idea seeds — flagged for future IdeaBox (no research in MVP)
+7. Morning briefing — AI narrative pushed at 7am, covers all domains
+8. 2am brain dump — frictionless late-night voice capture, processed in morning
+9. AI chat — "What should I focus on today?", natural language queries
+10. Anti-entropy — weekly AI review surfaces stale/avoided entries
+
+---
+
+## Future: Plugin Platform (design toward this, don't build it yet)
+
+Core = Inbox + AI Router + Reminder Engine + Morning Briefing
+Plugins = MedTracker, IdeaBox, Finance OS, Learning Tracker, Travel Agent
+
+Each plugin works standalone OR integrates with core via plugin API.
+Write domain logic in isolated files/hooks now — the architecture emerges from this.
