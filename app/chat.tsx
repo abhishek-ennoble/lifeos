@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { useChat } from '@/hooks/useChat';
 import { useTheme } from '@/hooks/useTheme';
@@ -15,7 +16,12 @@ import { useTheme } from '@/hooks/useTheme';
 export default function ChatScreen() {
   const { colors, radius } = useTheme();
   const { messages, loading, error, sendMessage } = useChat();
-  const [input, setInput] = useState('');
+  // When opened from a journal entry ("Discuss with AI"), seed the input with
+  // the entry text so the conversation has it as context.
+  const { seed } = useLocalSearchParams<{ seed?: string }>();
+  const [input, setInput] = useState(
+    seed ? `I wrote this in my journal:\n\n"${seed}"\n\nHelp me reflect on it.` : '',
+  );
 
   const handleSend = async () => {
     const trimmed = input.trim();

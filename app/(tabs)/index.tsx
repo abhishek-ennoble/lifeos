@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { BrainDumpModal, CaptureInput } from '@/components/CaptureInput';
-import { JournalModal } from '@/components/JournalModal';
 import { MorningBriefing } from '@/components/MorningBriefing';
 import { VoiceInput } from '@/components/VoiceInput';
 import { useAntiEntropy } from '@/hooks/useChat';
@@ -15,6 +14,12 @@ import { useEntries } from '@/hooks/useEntries';
 import { useTheme } from '@/hooks/useTheme';
 import { selectToday, todayMeta } from '@/lib/entry-utils';
 import { requestNotificationPermissions } from '@/lib/notifications';
+
+const ONBOARDING_EXAMPLES = [
+  'Buy milk tomorrow',
+  'Idea: a weekend side project',
+  'Practice guitar daily at 7pm',
+];
 
 function timeAwareGreeting(): string {
   const hour = new Date().getHours();
@@ -34,11 +39,10 @@ export default function HomeScreen() {
   const { colors, spacing, typography } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { entries, captureText, captureJournal, updateEntryStatus } = useEntries();
+  const { entries, captureText, updateEntryStatus } = useEntries();
   const { briefing, loading: briefingLoading, generateBriefing } = useBriefing();
   const { staleCount } = useAntiEntropy();
   const [brainDumpVisible, setBrainDumpVisible] = useState(false);
-  const [journalVisible, setJournalVisible] = useState(false);
   const [typing, setTyping] = useState(false);
 
   const today = useMemo(() => selectToday(entries, 3), [entries]);
@@ -98,7 +102,26 @@ export default function HomeScreen() {
           <Text style={[typography.title, styles.sectionTitle, { color: colors.textPrimary }]}>
             Today
           </Text>
-          {today.length === 0 ? (
+          {today.length === 0 && entries.length === 0 ? (
+            <View>
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>
+                Welcome. Capture anything — a task, an idea, a reminder — and I&apos;ll sort it for
+                you. Try one:
+              </Text>
+              <View style={styles.exampleRow}>
+                {ONBOARDING_EXAMPLES.map((example) => (
+                  <Pressable
+                    key={example}
+                    style={[styles.exampleChip, { borderColor: colors.border }]}
+                    onPress={() => void captureText(example)}>
+                    <Text style={[styles.exampleText, { color: colors.textPrimary }]}>
+                      {example}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : today.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textSecondary }]}>
               Nothing pressing. Enjoy the space.
             </Text>
@@ -142,7 +165,7 @@ export default function HomeScreen() {
           />
           <SecondaryAction
             label="Journal"
-            onPress={() => setJournalVisible(true)}
+            onPress={() => router.push('/journal')}
             color={colors.textSecondary}
           />
           <SecondaryAction
@@ -174,11 +197,6 @@ export default function HomeScreen() {
         visible={brainDumpVisible}
         onClose={() => setBrainDumpVisible(false)}
         onSubmit={captureText}
-      />
-      <JournalModal
-        visible={journalVisible}
-        onClose={() => setJournalVisible(false)}
-        onSave={captureJournal}
       />
     </View>
   );
@@ -254,6 +272,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     paddingVertical: 8,
+  },
+  exampleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  exampleChip: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  exampleText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   seeAll: {
     fontSize: 14,

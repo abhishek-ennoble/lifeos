@@ -44,12 +44,6 @@
           "icon": "./assets/images/icon.png",
           "color": "#2563EB"
         }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "LifeOS needs microphone access for voice capture."
-        }
       ]
     ],
     "experiments": {
