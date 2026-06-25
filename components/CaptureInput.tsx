@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
 import Toast from 'react-native-toast-message';
 
 import { darkTheme } from '@/constants/theme';
@@ -153,8 +153,9 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
-        <View style={[styles.modalContent, { backgroundColor: night.bg }]}>
+      <KeyboardProvider>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
+          <View style={[styles.modalContent, { backgroundColor: night.bg }]}>
           <Text style={[styles.modalTitle, { color: night.textPrimary }]}>Brain dump</Text>
           <Text style={[styles.modalSubtitle, { color: night.textSecondary }]}>
             No need to organize. Speak or type — I&apos;ll handle it in the morning.
@@ -188,8 +189,9 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
               )}
             </Pressable>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
+      </KeyboardProvider>
     </Modal>
   );
 }

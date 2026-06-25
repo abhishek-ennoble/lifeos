@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import Toast from 'react-native-toast-message';
 import 'react-native-reanimated';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthGate } from '@/components/AuthGate';
@@ -42,12 +43,14 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <SettingsProvider>
-        <AuthGate>
-          <RootLayoutNav />
-          <Toast />
-        </AuthGate>
-      </SettingsProvider>
+      <KeyboardProvider>
+        <SettingsProvider>
+          <AuthGate>
+            <RootLayoutNav />
+            <Toast />
+          </AuthGate>
+        </SettingsProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

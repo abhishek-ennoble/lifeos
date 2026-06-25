@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
 import Toast from 'react-native-toast-message';
 
 import { ALL_LIFE_AREAS, LIFE_AREA_LABELS, type LifeArea } from '@/constants/domains';
@@ -49,8 +49,9 @@ export function JournalModal({ visible, onClose, onSave }: JournalModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-        <View style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}>
+      <KeyboardProvider>
+        <KeyboardAvoidingView style={styles.overlay} behavior="padding">
+          <View style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Journal</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             A space to reflect. Nothing here becomes a task unless you ask.
@@ -111,8 +112,9 @@ export function JournalModal({ visible, onClose, onSave }: JournalModalProps) {
               )}
             </Pressable>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
+      </KeyboardProvider>
     </Modal>
   );
 }

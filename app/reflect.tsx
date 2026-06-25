@@ -1,15 +1,6 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
@@ -82,15 +73,12 @@ export default function ReflectScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
       style={[styles.flex, { backgroundColor: colors.bg }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive">
-        <Text style={[typography.display, { color: colors.textPrimary }]}>Evening reflection</Text>
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={24}>
+      <Text style={[typography.display, { color: colors.textPrimary }]}>Evening reflection</Text>
         <Text style={[styles.intro, { color: colors.textSecondary }]}>
           Two minutes to close the day gently. Answer what you like — skip the rest.
         </Text>
@@ -128,11 +116,10 @@ export default function ReflectScreen() {
         )}
       </Pressable>
 
-        <Pressable style={styles.skip} onPress={() => router.back()}>
-          <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip for tonight</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Pressable style={styles.skip} onPress={() => router.back()}>
+        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip for tonight</Text>
+      </Pressable>
+    </KeyboardAwareScrollView>
   );
 }
 
