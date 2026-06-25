@@ -1,0 +1,35 @@
+---
+description: LifeOS project rules — always read the docs and stay on the roadmap
+alwaysApply: true
+---
+
+# LifeOS rules for Cursor
+
+Read `AGENTS.md` at the repo root first — it is the full working agreement and
+applies to you. Key points:
+
+1. **Docs are the source of truth.** Before any non-trivial change, read the
+   relevant file in `docs/` (`PRD.md`, `ARCHITECTURE.md`, `PRODUCT_EVOLUTION.md`,
+   `ROADMAP.md`). After the change, update the matching doc in the same commit.
+   Docs and code must not drift.
+
+2. **Stay on the roadmap.** `docs/ROADMAP.md` is the control panel. Work the top
+   unchecked item, one slice at a time. Don't invent scope ahead of it.
+
+3. **Expo v56.** Read https://docs.expo.dev/versions/v56.0.0/ before Expo/RN code.
+   Don't rely on memory of older Expo APIs.
+
+4. **AI models.** The backend uses Claude. Don't hardcode model IDs from memory —
+   verify against the Anthropic docs. In use: `claude-haiku-4-5-20251001`,
+   `claude-sonnet-4-6`.
+
+5. **Security.** Every Supabase table is per-user via RLS. Service-role queries
+   bypass RLS and MUST filter by `user_id`. Never commit secrets; AI keys live in
+   Supabase secrets, not `.env`.
+
+6. **Hand off to Claude Code** for: edge functions + migrations, multi-file
+   refactors, builds/releases (EAS/Gradle/APK), git, security review, agentic work.
+   You own: inline features, UI tweaks, screen polish, small fixes.
+
+7. **Style.** TypeScript, plain `StyleSheet` (no Tailwind/NativeWind), typed hooks
+   in `hooks/`. Match the surrounding code.
