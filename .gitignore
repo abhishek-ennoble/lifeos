@@ -37,6 +37,9 @@ yarn-error.*
 # local discovery output (contains personal entry data — never commit)
 .discovery/
 
+# local versioned APK builds (kept locally for testing; distribute via GitHub Releases)
+apk/
+
 
 # typescript
 *.tsbuildinfo
