@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -48,7 +49,7 @@ export function JournalModal({ visible, onClose, onSave }: JournalModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Journal</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -111,7 +112,7 @@ export function JournalModal({ visible, onClose, onSave }: JournalModalProps) {
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

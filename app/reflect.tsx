@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
@@ -72,13 +82,20 @@ export default function ReflectScreen() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.content}>
-      <Text style={[typography.display, { color: colors.textPrimary }]}>Evening reflection</Text>
-      <Text style={[styles.intro, { color: colors.textSecondary }]}>
-        Two minutes to close the day gently. Answer what you like — skip the rest.
-      </Text>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive">
+        <Text style={[typography.display, { color: colors.textPrimary }]}>Evening reflection</Text>
+        <Text style={[styles.intro, { color: colors.textSecondary }]}>
+          Two minutes to close the day gently. Answer what you like — skip the rest.
+        </Text>
 
-      {PROMPTS.map((prompt) => (
+        {PROMPTS.map((prompt) => (
         <View key={prompt.key} style={styles.field}>
           <Text style={[styles.label, { color: colors.textPrimary }]}>{prompt.label}</Text>
           <TextInput
@@ -111,14 +128,18 @@ export default function ReflectScreen() {
         )}
       </Pressable>
 
-      <Pressable style={styles.skip} onPress={() => router.back()}>
-        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip for tonight</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.skip} onPress={() => router.back()}>
+          <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip for tonight</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 48,

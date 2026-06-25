@@ -43,7 +43,6 @@ export default function HomeScreen() {
   const { briefing, loading: briefingLoading, generateBriefing } = useBriefing();
   const { staleCount } = useAntiEntropy();
   const [brainDumpVisible, setBrainDumpVisible] = useState(false);
-  const [typing, setTyping] = useState(false);
 
   const today = useMemo(() => selectToday(entries, 3), [entries]);
 
@@ -86,6 +85,10 @@ export default function HomeScreen() {
           loading={briefingLoading}
           onGenerate={() => void generateBriefing()}
         />
+
+        <View style={styles.captureSection}>
+          <CaptureInput onSubmit={captureText} />
+        </View>
 
         {staleCount > 0 ? (
           <Link href="/anti-entropy" asChild>
@@ -151,12 +154,6 @@ export default function HomeScreen() {
           </Link>
         </View>
 
-        {typing ? (
-          <View style={styles.typeBox}>
-            <CaptureInput onSubmit={captureText} />
-          </View>
-        ) : null}
-
         <View style={styles.secondaryRow}>
           <SecondaryAction
             label="Brain dump"
@@ -182,14 +179,6 @@ export default function HomeScreen() {
       </ScrollView>
 
       <View style={[styles.fabBar, { bottom: insets.bottom + 24 }]} pointerEvents="box-none">
-        <Pressable
-          style={styles.typeToggle}
-          hitSlop={8}
-          onPress={() => setTyping((value) => !value)}>
-          <Text style={[styles.typeToggleText, { color: colors.textSecondary }]}>
-            {typing ? 'Hide keyboard' : 'or type'}
-          </Text>
-        </Pressable>
         <VoiceInput variant="fab" onTranscribed={handleVoiceCapture} />
       </View>
 
@@ -294,8 +283,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 12,
   },
-  typeBox: {
-    marginTop: 24,
+  captureSection: {
+    marginTop: 20,
   },
   secondaryRow: {
     flexDirection: 'row',
@@ -315,13 +304,5 @@ const styles = StyleSheet.create({
     right: 24,
     alignItems: 'center',
     gap: 8,
-  },
-  typeToggle: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  typeToggleText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
 });

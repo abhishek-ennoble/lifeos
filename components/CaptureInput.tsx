@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -152,7 +153,7 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
         <View style={[styles.modalContent, { backgroundColor: night.bg }]}>
           <Text style={[styles.modalTitle, { color: night.textPrimary }]}>Brain dump</Text>
           <Text style={[styles.modalSubtitle, { color: night.textSecondary }]}>
@@ -188,7 +189,7 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
