@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
+# local discovery output (contains personal entry data — never commit)
+.discovery/
+
 
 # typescript
 *.tsbuildinfo
