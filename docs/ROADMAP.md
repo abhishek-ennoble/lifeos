@@ -39,10 +39,13 @@ unchecked item, build it, check it off, update the relevant doc.
   - [x] One-time backfill recovered 3 buried items (`scripts/backfill-feedback.mjs`).
   - *Deferred:* feedback digest (2.1), chat persistence as feedback source, recurring nudge.
 
-- [ ] **1.2b Reminders v2 (flexible scheduling)** · M · **[Claude Code]**
-  One-off and relative-time reminders (e.g. "remind me in 10 mins") — surfaced from
-  real user data where `metadata.reminder_in_minutes` was stored but never fired.
-  *Recommended next slice after 1.2.*
+- [x] **1.2b Reminders v2 (flexible scheduling)** · M · **[Claude Code]**
+  One-off and relative-time reminders (e.g. "remind me in 10 mins") via
+  `reminder_in_minutes` / `remind_at` / `due_at` + local push. Health daily unchanged.
+
+- [ ] **1.2c Voice capture** · S–M · **[Cursor]**
+  Migrate `VoiceInput` from stub to `expo-audio` → `transcribe-audio` → `captureText`.
+  Backend ready; blocked on SDK 56 recording API.
 
 - [ ] **1.3 Per-user preferences + memory tables** · M · **[Claude Code]**
   `user_preferences` (explicit settings) + `user_memory` (AI-inferred patterns).

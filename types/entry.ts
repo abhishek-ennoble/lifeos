@@ -18,6 +18,12 @@ export interface HealthMetadata extends WithLifeArea {
 export interface TaskMetadata extends WithLifeArea {
   subdomain: 'errand' | 'work' | 'personal';
   ephemeral: boolean;
+  /** Relative reminder: fire in N minutes from capture. */
+  reminder_in_minutes?: number;
+  /** Absolute ISO8601 remind time. */
+  remind_at?: string;
+  /** When true and due_at is set, schedule a notification at due_at. */
+  wants_reminder?: boolean;
 }
 
 export interface LearningMetadata extends WithLifeArea {

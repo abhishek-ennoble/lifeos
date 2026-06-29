@@ -3,7 +3,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { DOMAINS, type Domain, type LifeArea } from '@/constants/domains';
 import { invokeFunction, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { cacheEntries, readCachedEntries, upsertCachedEntry } from '@/lib/sqlite';
-import { scheduleEntryReminders } from '@/lib/notifications';
+import {
+  buildReminderRows,
+  cancelEntryReminders,
+  requestNotificationPermissions,
+  scheduleEntryReminders,
+} from '@/lib/notifications';
+import { planRemindersForEntry } from '@/lib/reminder-plan';
 import type { CaptureResult } from '@/types/capture';
 import type { ClassifiedEntry, Entry, EntryMetadata, JournalMetadata } from '@/types/entry';
 import type { Json } from '@/lib/database.types';
@@ -179,27 +185,15 @@ export function useEntries(domain?: Domain): UseEntriesResult {
 
         const entry = mapRow(data as Record<string, unknown>);
         await upsertCachedEntry(entry);
-        await scheduleEntryReminders(entry);
 
-        if (classified.domain === DOMAINS.HEALTH && classified.metadata) {
-          const times = (classified.metadata as { times?: string[] }).times ?? [];
-          if (times.length > 0) {
-            const reminders = times.map((time) => {
-              const [hours, minutes] = time.split(':').map(Number);
-              const fireAt = new Date();
-              fireAt.setHours(hours, minutes, 0, 0);
-              if (fireAt <= new Date()) {
-                fireAt.setDate(fireAt.getDate() + 1);
-              }
-              return {
-                user_id: user.id,
-                entry_id: entry.id,
-                fire_at: fireAt.toISOString(),
-              };
-            });
-
-            await supabase.from('reminders').insert(reminders);
+        const reminderPlan = planRemindersForEntry(entry);
+        if (reminderPlan.length > 0) {
+          await requestNotificationPermissions();
+          const rows = buildReminderRows(entry, user.id);
+          if (rows.length > 0) {
+            await supabase.from('reminders').insert(rows);
           }
+          await scheduleEntryReminders(entry);
         }
 
         await refresh();
@@ -284,6 +278,10 @@ export function useEntries(domain?: Domain): UseEntriesResult {
           throw updateError;
         }
 
+        if (status === 'done' || status === 'archived') {
+          await cancelEntryReminders(id);
+        }
+
         await refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update entry';
@@ -306,6 +304,7 @@ export function useEntries(domain?: Domain): UseEntriesResult {
           throw deleteError;
         }
 
+        await cancelEntryReminders(id);
         await refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to delete entry';

@@ -24,8 +24,8 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Evening reflection flow | ✅ | `app/reflect.tsx` → `captureJournal` |
 | Health daily reminders (local notif) | ✅ | `lib/notifications.ts` DAILY trigger from `metadata.times` |
 | Morning/evening ritual notifications | ✅ | `scheduleMorningBriefingNotification`, `scheduleEveningReflection` (DAILY) |
-| One-off / relative-time reminders | ⛔ | only `SchedulableTriggerInputTypes.DAILY` exists; no date-fire path (**user data: "remind in 10 min" silently failed**) |
-| `reminders` table rows → push | 🟡 | rows written for health times but only read as briefing data, not sent |
+| One-off / relative-time reminders | ✅ | `lib/reminder-plan.ts` + `TIME_INTERVAL`/`DATE` triggers in `lib/notifications.ts` |
+| `reminders` table rows → push | ✅ | Rows written at capture; local notif scheduled for all domains with remind intent |
 | Voice capture / transcription (in-app) | ⛔ | `components/VoiceInput.tsx` is a no-op toast ("coming soon") |
 | `transcribe-audio` (Whisper) backend | ⚙️ | function + `lib/whisper.ts` work, but app never calls them |
 | Spaced repetition / learning sessions | 🟡 | `logLearningSession` exists; interval logic in `lib/spaced-repetition.ts`, limited UI |

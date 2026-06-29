@@ -25,6 +25,10 @@ Rules:
 - Never output domain "journal" — that type is created manually by the user
 - Extract recurrence_rule as cron string when a recurring pattern is detected
 - Extract times as "HH:MM" in 24h format
+- Reminder intent: when user asks to be reminded, set metadata fields:
+  - reminder_in_minutes (integer) for "in X minutes/hours" (convert hours to minutes)
+  - remind_at (ISO8601) for "remind me at 3pm tomorrow" or specific datetime
+  - wants_reminder (true) when remind intent exists; also set due_at when a deadline is given
 - Set priority "high" for health/medicine, "medium" default, "low" for vague future items
 - Include "life_area" (one of the five values above, or null)
 - Always return valid JSON matching the schema. No prose, no explanation.

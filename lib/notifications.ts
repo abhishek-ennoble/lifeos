@@ -1,8 +1,14 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import type { Entry } from '@/types/entry';
 import { DOMAINS } from '@/constants/domains';
+import {
+  dailySpecsFromPlan,
+  nextDailyFireAt,
+  onceSpecsFromPlan,
+  planRemindersForEntry,
+} from '@/lib/reminder-plan';
+import type { Entry } from '@/types/entry';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,35 +34,72 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   }
 }
 
+function reminderBody(entry: Entry): string {
+  if (entry.description) {
+    return entry.description;
+  }
+  if (entry.domain === DOMAINS.HEALTH) {
+    return 'Health reminder';
+  }
+  return 'Reminder';
+}
+
 export async function scheduleEntryReminders(entry: Entry): Promise<void> {
-  if (entry.domain !== DOMAINS.HEALTH) {
+  if (Platform.OS === 'web') {
     return;
   }
 
   try {
     await cancelEntryReminders(entry.id);
 
-    const metadata = entry.metadata as { times?: string[] } | null;
-    const times = metadata?.times ?? [];
+    const plan = planRemindersForEntry(entry);
+    if (plan.length === 0) {
+      return;
+    }
 
-    for (const time of times) {
-      const [hours, minutes] = time.split(':').map(Number);
-      if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    const content = {
+      title: entry.title,
+      body: reminderBody(entry),
+      data: { entryId: entry.id, domain: entry.domain },
+    };
+
+    for (const spec of dailySpecsFromPlan(plan)) {
+      await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: spec.hour,
+          minute: spec.minute,
+        },
+      });
+    }
+
+    const now = Date.now();
+    for (const spec of onceSpecsFromPlan(plan)) {
+      const msUntil = spec.fireAt.getTime() - now;
+      if (msUntil <= 0) {
         continue;
       }
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: entry.title,
-          body: entry.description ?? 'Health reminder',
-          data: { entryId: entry.id, domain: entry.domain },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: hours,
-          minute: minutes,
-        },
-      });
+      // Relative short-fuse reminders use interval; longer use absolute DATE.
+      if (msUntil <= 24 * 60 * 60 * 1000) {
+        await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: Math.max(1, Math.ceil(msUntil / 1000)),
+            repeats: false,
+          },
+        });
+      } else {
+        await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: spec.fireAt,
+          },
+        });
+      }
     }
   } catch {
     // Notification scheduling failures should not block entry creation
@@ -75,6 +118,33 @@ export async function cancelEntryReminders(entryId: string): Promise<void> {
   } catch {
     // Ignore cancellation errors
   }
+}
+
+/** Build reminder rows for the Supabase `reminders` table from an entry plan. */
+export function buildReminderRows(
+  entry: Entry,
+  userId: string,
+): Array<{ user_id: string; entry_id: string; fire_at: string }> {
+  const plan = planRemindersForEntry(entry);
+  const rows: Array<{ user_id: string; entry_id: string; fire_at: string }> = [];
+
+  for (const spec of dailySpecsFromPlan(plan)) {
+    rows.push({
+      user_id: userId,
+      entry_id: entry.id,
+      fire_at: nextDailyFireAt(spec.hour, spec.minute).toISOString(),
+    });
+  }
+
+  for (const spec of onceSpecsFromPlan(plan)) {
+    rows.push({
+      user_id: userId,
+      entry_id: entry.id,
+      fire_at: spec.fireAt.toISOString(),
+    });
+  }
+
+  return rows;
 }
 
 /** Parse "HH:MM" 24h into {hour, minute}, falling back to a sensible default. */
