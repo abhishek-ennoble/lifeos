@@ -9,6 +9,8 @@ Domains:
 - learning: skills, courses, long-term knowledge goals (music theory, Python, spiritual learning)
 - idea: conceptual seeds, product/business/personal ideas ("what if we build X")
 - note: ephemeral context facts that expire (location of keys, temporary reminders)
+- feedback: feedback about LifeOS itself — bugs, UX complaints, feature requests for the app
+  (signals: "feedback on app", "the app should", "I can't see X", "app improvement")
 
 Life areas (optional cross-cutting tag, NOT a domain):
 - spiritual | creative | technical | family | finance
@@ -19,6 +21,7 @@ Life areas (optional cross-cutting tag, NOT a domain):
 Rules:
 - If uncertain, prefer "task" over "note"
 - "note" only for things with no action and very short life (under 48h)
+- "feedback" only when the user is commenting on LifeOS the app (not general life ideas)
 - Never output domain "journal" — that type is created manually by the user
 - Extract recurrence_rule as cron string when a recurring pattern is detected
 - Extract times as "HH:MM" in 24h format
@@ -64,6 +67,36 @@ async function classifyWithClaude(rawInput: string): Promise<Record<string, unkn
   }
 
   return JSON.parse(jsonText);
+}
+
+function buildFeedbackFastPath(rawInput: string): Record<string, unknown> | null {
+  const trimmed = rawInput.trim();
+  const match = /^fb:\s*/i.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+
+  const body = trimmed.slice(match[0].length).trim();
+  if (!body) {
+    return null;
+  }
+
+  const firstLine = body.split('\n')[0]?.trim() ?? body;
+  const title = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine;
+
+  return {
+    domain: 'feedback',
+    title,
+    description: body,
+    priority: 'medium',
+    is_recurring: false,
+    recurrence_rule: null,
+    metadata: { theme: 'general' },
+    life_area: null,
+    expires_at: null,
+    due_at: null,
+    confidence: 1,
+  };
 }
 
 // Pull the first complete, brace-balanced JSON object out of the model's reply.
@@ -130,7 +163,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'raw_input is required' }, 400);
     }
 
-    const classified = await classifyWithClaude(rawInput);
+    const fastPath = buildFeedbackFastPath(rawInput);
+    const classified = fastPath ?? (await classifyWithClaude(rawInput));
 
     if (classified.domain === 'note' && !classified.expires_at) {
       const hours =

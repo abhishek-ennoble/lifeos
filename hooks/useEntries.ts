@@ -4,6 +4,7 @@ import { DOMAINS, type Domain, type LifeArea } from '@/constants/domains';
 import { invokeFunction, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { cacheEntries, readCachedEntries, upsertCachedEntry } from '@/lib/sqlite';
 import { scheduleEntryReminders } from '@/lib/notifications';
+import type { CaptureResult } from '@/types/capture';
 import type { ClassifiedEntry, Entry, EntryMetadata, JournalMetadata } from '@/types/entry';
 import type { Json } from '@/lib/database.types';
 
@@ -21,7 +22,7 @@ interface UseEntriesResult {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  captureText: (rawInput: string) => Promise<Entry | null>;
+  captureText: (rawInput: string) => Promise<CaptureResult | null>;
   captureJournal: (input: JournalInput) => Promise<Entry | null>;
   updateEntryStatus: (id: string, status: Entry['status']) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
@@ -109,7 +110,7 @@ export function useEntries(domain?: Domain): UseEntriesResult {
   }, [refresh]);
 
   const captureText = useCallback(
-    async (rawInput: string): Promise<Entry | null> => {
+    async (rawInput: string): Promise<CaptureResult | null> => {
       try {
         const classified = await invokeFunction<ClassifiedEntry>('classify-entry', {
           raw_input: rawInput,
@@ -121,6 +122,28 @@ export function useEntries(domain?: Domain): UseEntriesResult {
 
         if (!user) {
           throw new Error('Not authenticated');
+        }
+
+        if (classified.domain === 'feedback') {
+          const theme =
+            classified.metadata && typeof classified.metadata === 'object'
+              ? String((classified.metadata as Record<string, unknown>).theme ?? '') || null
+              : null;
+
+          const { error: feedbackError } = await supabase.from('app_feedback').insert({
+            user_id: user.id,
+            title: classified.title,
+            body: classified.description ?? rawInput,
+            theme,
+            source: 'capture',
+            status: 'new',
+          });
+
+          if (feedbackError) {
+            throw feedbackError;
+          }
+
+          return { kind: 'feedback' };
         }
 
         // Fold the classifier's optional life-area tag into metadata so it
@@ -180,7 +203,7 @@ export function useEntries(domain?: Domain): UseEntriesResult {
         }
 
         await refresh();
-        return entry;
+        return { kind: 'entry', entry };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to capture entry';
         setError(message);

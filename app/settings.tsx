@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Switch, Text, View, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
 import { useSettings, type ThemePref } from '@/hooks/useSettings';
@@ -93,6 +93,18 @@ export default function SettingsScreen() {
             void reschedule({ morningTime });
           }}
         />
+      </Section>
+
+      <Section title="App feedback" colors={colors} typography={typography}>
+        <Text style={[styles.note, { color: colors.textSecondary }]}>
+          Improvements you capture about LifeOS — bugs, UX, feature ideas. Prefix with
+          &quot;fb:&quot; to force feedback routing.
+        </Text>
+        <Pressable
+          onPress={() => router.push('/feedback' as Href)}
+          style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
+          <Text style={[styles.reflectNowText, { color: colors.primary }]}>View app feedback</Text>
+        </Pressable>
       </Section>
 
       <Section title="Evening reflection" colors={colors} typography={typography}>

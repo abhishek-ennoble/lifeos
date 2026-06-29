@@ -13,9 +13,10 @@ import Toast from 'react-native-toast-message';
 
 import { darkTheme } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import type { CaptureResult } from '@/types/capture';
 
 interface CaptureInputProps {
-  onSubmit: (text: string) => Promise<void | null | unknown>;
+  onSubmit: (text: string) => Promise<CaptureResult | void | null | unknown>;
   placeholder?: string;
   compact?: boolean;
 }
@@ -37,9 +38,22 @@ export function CaptureInput({
 
     setLoading(true);
     try {
-      await onSubmit(trimmed);
+      const result = await onSubmit(trimmed);
       setText('');
-      Toast.show({ type: 'success', text1: 'Saved', text2: 'Captured and routed' });
+      if (
+        result &&
+        typeof result === 'object' &&
+        'kind' in result &&
+        (result as CaptureResult).kind === 'feedback'
+      ) {
+        Toast.show({
+          type: 'success',
+          text1: 'Thanks',
+          text2: 'Logged as app feedback',
+        });
+      } else {
+        Toast.show({ type: 'success', text1: 'Saved', text2: 'Captured and routed' });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Capture failed';
       Toast.show({ type: 'error', text1: 'Error', text2: message });
@@ -115,7 +129,7 @@ export function CaptureInput({
 interface BrainDumpModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (text: string) => Promise<void | null | unknown>;
+  onSubmit: (text: string) => Promise<CaptureResult | void | null | unknown>;
 }
 
 /**
@@ -135,14 +149,27 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
 
     setLoading(true);
     try {
-      await onSubmit(trimmed);
+      const result = await onSubmit(trimmed);
       setText('');
       onClose();
-      Toast.show({
-        type: 'success',
-        text1: 'Saved for morning',
-        text2: "I'll handle it when you wake up",
-      });
+      if (
+        result &&
+        typeof result === 'object' &&
+        'kind' in result &&
+        (result as CaptureResult).kind === 'feedback'
+      ) {
+        Toast.show({
+          type: 'success',
+          text1: 'Thanks',
+          text2: 'Logged as app feedback',
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Saved for morning',
+          text2: "I'll handle it when you wake up",
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save';
       Toast.show({ type: 'error', text1: 'Error', text2: message });

@@ -90,6 +90,7 @@ function RootLayoutNav() {
         <Stack.Screen name="anti-entropy" options={{ title: 'Anti-Entropy Review' }} />
         <Stack.Screen name="journal" options={{ title: 'Journal' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="feedback" options={{ title: 'App Feedback' }} />
         <Stack.Screen
           name="reflect"
           options={{ title: 'Evening reflection', presentation: 'modal' }}

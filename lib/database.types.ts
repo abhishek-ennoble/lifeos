@@ -117,6 +117,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      app_feedback: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          body: string;
+          theme: string | null;
+          source: string;
+          source_entry_id: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          body: string;
+          theme?: string | null;
+          source?: string;
+          source_entry_id?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          body?: string;
+          theme?: string | null;
+          source?: string;
+          source_entry_id?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

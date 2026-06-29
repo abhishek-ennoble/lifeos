@@ -74,7 +74,8 @@ export interface Entry {
 }
 
 export interface ClassifiedEntry {
-  domain: Domain;
+  /** Classifier output domain; `feedback` routes to app_feedback, not entries. */
+  domain: Domain | 'feedback';
   title: string;
   description: string | null;
   priority: EntryPriority;
