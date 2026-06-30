@@ -11,6 +11,7 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | App feedback list (Settings) | ✅ | `app/feedback.tsx`, `hooks/useFeedback.ts` |
 | Brain dump capture | ✅ | `components/CaptureInput.tsx`, Home `index.tsx` |
 | Inbox: browse + filter by domain & life-area | ✅ | `app/(tabs)/inbox.tsx`, `InboxList` |
+| Inbox: sort (date, priority, due) | ⛔ | planned 1.2e — see `NEXT_AGENT_HANDOFF.md` |
 | Home "Today" strip + mark done | ✅ | `app/(tabs)/index.tsx` `selectToday`, `updateEntryStatus` |
 | Status changes (done / archive=delete) | ✅ | `useEntries.ts` `updateEntryStatus`, `deleteEntry` |
 | Offline SQLite read-through cache | ✅ | `lib/sqlite.ts`, read before network in `refresh` |
@@ -24,13 +25,15 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Evening reflection flow | ✅ | `app/reflect.tsx` → `captureJournal` |
 | Health daily reminders (local notif) | ✅ | `lib/notifications.ts` DAILY trigger from `metadata.times` |
 | Morning/evening ritual notifications | ✅ | `scheduleMorningBriefingNotification`, `scheduleEveningReflection` (DAILY) |
-| One-off / relative-time reminders | ✅ | `lib/reminder-plan.ts` + `TIME_INTERVAL`/`DATE` triggers in `lib/notifications.ts` |
+| One-off / relative-time reminders | 🟡 | v2 ships local push; polish + accountability loop in 1.2d–1.2f |
 | `reminders` table rows → push | ✅ | Rows written at capture; local notif scheduled for all domains with remind intent |
 | Voice capture / transcription (in-app) | ⛔ | `components/VoiceInput.tsx` is a no-op toast ("coming soon") |
 | `transcribe-audio` (Whisper) backend | ⚙️ | function + `lib/whisper.ts` work, but app never calls them |
 | Spaced repetition / learning sessions | 🟡 | `logLearningSession` exists; interval logic in `lib/spaced-repetition.ts`, limited UI |
 
 ## Known weak spots
+- **Reminder classifier UX** — bare "remind in X mins" → generic `note`/"Reminder"; inbox looks duplicate.
+- **Notification tap** — opens app, not the entry; no Done/Snooze from notif bar.
 - **Date extraction is unreliable** — classifier `due_at`/`expires_at` often wrong or empty.
 - **Voice capture stubbed** — `expo-av` removed (SDK 56 incompatible); `expo-audio` migration pending.
 - **No two-way sync** — SQLite is read cache only; mutations go straight to Supabase.

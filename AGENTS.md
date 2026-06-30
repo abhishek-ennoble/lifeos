@@ -14,6 +14,7 @@ change, **update the matching doc in the same commit.** Docs and code must not d
 
 | Doc | What it is |
 |---|---|
+| `docs/NEXT_AGENT_HANDOFF.md` | **Session handoff** — current state, user-tested gaps, next slices (read when resuming) |
 | `docs/PRD.md` | What the product is and why |
 | `docs/ARCHITECTURE.md` | How it's built (data model, functions, screens) |
 | `docs/PRODUCT_EVOLUTION.md` | Where it's going — full design rationale |

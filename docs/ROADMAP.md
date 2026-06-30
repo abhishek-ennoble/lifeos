@@ -42,10 +42,29 @@ unchecked item, build it, check it off, update the relevant doc.
 - [x] **1.2b Reminders v2 (flexible scheduling)** · M · **[Claude Code]**
   One-off and relative-time reminders (e.g. "remind me in 10 mins") via
   `reminder_in_minutes` / `remind_at` / `due_at` + local push. Health daily unchanged.
+  *User-tested 2026-06-30: push works; gaps → 1.2d–1.2f.*
+
+- [ ] **1.2d Reminder UX polish** · S · **[Cursor]**
+  Classifier: remind intent → **task** with real title (not generic `note`/"Reminder").
+  EntryCard 🔔 badge; notification tap → open entry; Android channel (sound/importance).
+  See [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) §2.
+
+- [ ] **1.2e Inbox sort & filter** · S · **[Cursor]**
+  Sort: newest/oldest, due soonest, priority (high→low). Filter: has reminder, status.
+  Client-side in `InboxList`; persist sort in settings.
+
+- [ ] **1.2f Reminder accountability loop (v3)** · M · **[Claude Code]** + **[Cursor]**
+  Supportive follow-up: notif actions (Done/Snooze), optional EOD gentle review,
+  horizon-aware re-nudge (10 min ≠ 7 days), blocked → optional linked task.
+  Design principle: sparse, skippable, not nagging. See handoff doc §2.
 
 - [ ] **1.2c Voice capture** · S–M · **[Cursor]**
   Migrate `VoiceInput` from stub to `expo-audio` → `transcribe-audio` → `captureText`.
-  Backend ready; blocked on SDK 56 recording API.
+  Backend ready. **After 1.2d** (or parallel). See handoff doc §4.
+
+- [ ] **1.2g Feedback: journal scanner + ritual** · S · **[Claude Code]** + **[Cursor]**
+  Journal → detect app feedback → `app_feedback`; Settings nudge + `fb:` shortcut + badge.
+  *Deferred digest → 2.1.*
 
 - [ ] **1.3 Per-user preferences + memory tables** · M · **[Claude Code]**
   `user_preferences` (explicit settings) + `user_memory` (AI-inferred patterns).
@@ -117,15 +136,16 @@ unchecked item, build it, check it off, update the relevant doc.
 ## Critical path (what unblocks what)
 
 ```
+1.2b reminders v2 ─► 1.2d polish ─► 1.2e inbox sort ─► 1.2f accountability loop
+1.2c voice ──────────── (after 1.2d, before 1.3)
+1.2g feedback ritual ── (parallel after polish)
 1.1 service-role audit ─► multi-tenant ─► 1.3 memory ─► personalization
-                                             │
-                                             ▼
-                       2.2 pattern learning ─► 3.1 suggestions ─► 3.2 IdeaBox
-2.3 agent platform ────────────────────────────┴─► 3.3 user agents
 1.2 feedback capture ─► 2.1 feedback digest
 1.4 token tracking ───► (feeds premium tiers & quotas everywhere)
+2.3 agent platform ───► per-user agents (user feedback theme)
 2.4 config home ──────► 4.1 atomic layout (optional)
 ```
 
-**Do first:** 1.1 + 1.2 + 1.3 together — lowest risk, highest leverage, foundation
-for everything else.
+**Next agent:** read [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) then start **1.2d**.
+
+**Do first (near term):** 1.2d + 1.2e — reminder trust + inbox usability before v3 loop.
