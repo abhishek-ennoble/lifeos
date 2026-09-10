@@ -34,7 +34,9 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | User memory injection (1.3) | ✅ | `user_memory` table; injected in classify/chat/briefing |
 | Display name personalization (FB-1) | ✅ | `user_preferences.preferences.display_name`; greeting (`lib/greeting.ts`) + briefing/chat prompts (`_shared/memory.ts`); Settings → Profile |
 | Onboarding v0 (FB-2/FB-3) | ✅ | `OnboardingGate`: name → notification opt-in → briefing nudge on by default; rituals re-applied per launch |
-| Reminder cloud telemetry (FB-4) | ✅ | `lib/reminder-sync.ts` writes `sent_at`/`acknowledged_at` on fire/ack |
+| Reminder cloud telemetry (FB-4, D2 fix) | ✅ | `lib/reminder-sync.ts` — `reconcileFiredReminders` on launch/foreground; ack falls back to past-due unsent row |
+| Classifier temporal grounding (T-2) | ✅ | `_shared/temporal.ts` + `lib/temporal-context.ts`; `start_at` vs `due_at`; stale guard |
+| Keep-alive / scheduler seed (T-4) | ✅ | `.github/workflows/keep-alive.yml` daily 08:00 IST; secrets set |
 | Notification channels (FB-4) | ✅ | `channelId` on **trigger** (Expo v56 fix); `reminders` HIGH+sound, `rituals` LOW+silent |
 | Reminder quick-edit from entry detail (FB-6) | ✅ | `EntryDetailModal` → In 1 hour / Tomorrow 9am |
 | Unit tests (vitest) | ✅ | `npm test`; pure lib logic (`tests/`) |
@@ -46,7 +48,7 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Spaced repetition / learning sessions | 🟡 | `logLearningSession` exists; interval logic in `lib/spaced-repetition.ts`, limited UI |
 
 ## Known weak spots
-- **Date extraction is unreliable** — classifier `due_at`/`expires_at` often wrong or empty.
+- **Date extraction** — grounded since 2026-09-10 (T-2); residual model variance until the eval harness (T-6) gates prompt changes.
 - **Voice capture** — requires network for Whisper; audio deleted after transcript.
 - **Capture save feedback** — domain-aware toast ("Saved to Notes") with tap → Inbox highlight; Home "Just captured" strip; "Classifying…" loading state.
 - **Inbox + journals** — default "Pending only" filter now still shows `domain=journal` (saved as done).
@@ -63,7 +65,15 @@ not the app. pg_cron scheduling is not enabled (jobs commented out).
 **Feedback backfill (2026-06-29):** 3 buried app-improvement items recovered from
 existing entries into `app_feedback` via `scripts/backfill-feedback.mjs`.
 
-**Latest APK:** `apk/27072026_170253/LifeOS.apk` — **1.1.0** (versionCode 4) Friend Beta build:
+**Latest APK:** `apk/10092026_165801/LifeOS.apk` — **1.2.0** (versionCode 5) Trust-the-machine build
+(T-1…T-5): D2 reminder-telemetry fix (foreground reconcile), classifier temporal grounding
+(client sends clock + timezone), briefing in user's day / short-first / no markdown, Home
+de-clutter (F21). Built locally via `gradlew assembleRelease` on 2026-09-10 (105 MB).
+Pre-build verification green (`typecheck`, `vitest` 24/24, `audit:service-role`;
+`classify-entry` + `morning-briefing` redeployed and live-verified). Keep-alive workflow
+live on GitHub Actions (secrets set, first run green). **Device-test:** `DEVICE_TEST_CHECKLIST` F.9, F.12, F.13.
+
+**Previous APK:** `apk/27072026_170253/LifeOS.apk` — **1.1.0** (versionCode 4) Friend Beta build:
 FB-1…FB-6 (display-name personalization, onboarding v0, briefing nudge default-on,
 reminder telemetry + notification channel fix, feedback triage, per-day AI cost +
 reminder quick-edit). Built locally via `gradlew assembleRelease` on 2026-07-27.
