@@ -1,7 +1,23 @@
-import { ScrollView, StyleSheet, Switch, Text, View, Pressable } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
+import { FeedbackCaptureModal } from '@/components/FeedbackCaptureModal';
+import { useEntries } from '@/hooks/useEntries';
+import { generateFeedbackDigest, useFeedback } from '@/hooks/useFeedback';
+import { formatUsd, useAiUsage } from '@/hooks/useAiUsage';
+import { useProfile } from '@/hooks/useProfile';
 import { useSettings, type ThemePref } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { applyRitualSchedule, requestNotificationPermissions } from '@/lib/notifications';
@@ -15,7 +31,53 @@ const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
 export default function SettingsScreen() {
   const { colors, typography, radius } = useTheme();
   const { settings, updateSettings } = useSettings();
+  const { captureText } = useEntries();
+  const { newCount } = useFeedback(settings.feedbackLastSeenAt);
+  const {
+    today: aiUsageToday,
+    month: aiUsageMonth,
+    allTime: aiUsageAllTime,
+    loading: aiUsageLoading,
+    error: aiUsageError,
+  } = useAiUsage();
   const router = useRouter();
+  const { giveFeedback } = useLocalSearchParams<{ giveFeedback?: string }>();
+
+  const { profile, updateDisplayName } = useProfile();
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameDirty, setNameDirty] = useState(false);
+
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [digestVisible, setDigestVisible] = useState(false);
+  const [digestContent, setDigestContent] = useState<string | null>(null);
+  const [digestLoading, setDigestLoading] = useState(false);
+
+  useEffect(() => {
+    if (giveFeedback === '1') {
+      setFeedbackModalVisible(true);
+    }
+  }, [giveFeedback]);
+
+  useEffect(() => {
+    if (!nameDirty) {
+      setNameDraft(profile.displayName ?? '');
+    }
+  }, [profile.displayName, nameDirty]);
+
+  const handleSaveName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === profile.displayName) {
+      setNameDirty(false);
+      return;
+    }
+    const saved = await updateDisplayName(trimmed);
+    setNameDirty(false);
+    Toast.show({
+      type: saved ? 'success' : 'info',
+      text1: saved ? 'Name updated' : 'Saved on this device',
+      text2: saved ? undefined : 'Will sync when back online',
+    });
+  };
 
   const reschedule = async (overrides: Partial<typeof settings>) => {
     const next = { ...settings, ...overrides };
@@ -24,6 +86,8 @@ export default function SettingsScreen() {
       morningTime: next.morningTime,
       eveningEnabled: next.eveningEnabled,
       eveningTime: next.eveningTime,
+      feedbackWeeklyNudge: next.feedbackWeeklyNudge,
+      reminderEodReviewEnabled: next.reminderEodReviewEnabled,
     });
   };
 
@@ -39,38 +103,85 @@ export default function SettingsScreen() {
     await reschedule({ notificationsEnabled: value });
   };
 
+  const openFeedbackList = () => {
+    void updateSettings({ feedbackLastSeenAt: new Date().toISOString() });
+    router.push('/feedback' as Href);
+  };
+
+  const handleGenerateDigest = async () => {
+    setDigestLoading(true);
+    try {
+      const digest = await generateFeedbackDigest();
+      setDigestContent(digest.content);
+      setDigestVisible(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Digest failed';
+      Toast.show({ type: 'error', text1: 'Error', text2: message });
+    } finally {
+      setDigestLoading(false);
+    }
+  };
+
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={styles.content}>
-      <Section title="Appearance" colors={colors} typography={typography}>
-        <View style={styles.segment}>
-          {THEME_OPTIONS.map((option) => {
-            const active = settings.themePref === option.value;
-            return (
-              <Pressable
-                key={option.value}
-                onPress={() => void updateSettings({ themePref: option.value })}
-                style={[
-                  styles.segmentItem,
-                  {
-                    backgroundColor: active ? colors.primary : colors.surface,
-                    borderColor: colors.border,
-                    borderRadius: radius.md,
-                  },
-                ]}>
-                <Text
-                  style={{
-                    color: active ? colors.primaryContrast : colors.textSecondary,
-                    fontWeight: '600',
-                  }}>
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </Section>
+    <>
+      <ScrollView
+        style={{ backgroundColor: colors.bg }}
+        contentContainerStyle={styles.content}>
+        <Section title="Profile" colors={colors} typography={typography}>
+          <Text style={[styles.note, { color: colors.textSecondary, marginTop: 0 }]}>
+            Used in your greeting and morning briefing.
+          </Text>
+          <TextInput
+            value={nameDraft}
+            onChangeText={(text) => {
+              setNameDraft(text);
+              setNameDirty(true);
+            }}
+            onBlur={() => void handleSaveName()}
+            onSubmitEditing={() => void handleSaveName()}
+            placeholder="Your name"
+            placeholderTextColor={colors.textSecondary}
+            returnKeyType="done"
+            style={[
+              styles.nameInput,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                color: colors.textPrimary,
+                borderRadius: radius.md,
+              },
+            ]}
+          />
+        </Section>
+
+        <Section title="Appearance" colors={colors} typography={typography}>
+          <View style={styles.segment}>
+            {THEME_OPTIONS.map((option) => {
+              const active = settings.themePref === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => void updateSettings({ themePref: option.value })}
+                  style={[
+                    styles.segmentItem,
+                    {
+                      backgroundColor: active ? colors.primary : colors.surface,
+                      borderColor: colors.border,
+                      borderRadius: radius.md,
+                    },
+                  ]}>
+                  <Text
+                    style={{
+                      color: active ? colors.primaryContrast : colors.textSecondary,
+                      fontWeight: '600',
+                    }}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
 
       <Section title="Notifications" colors={colors} typography={typography}>
         <Row label="Enable notifications" colors={colors}>
@@ -80,67 +191,211 @@ export default function SettingsScreen() {
             trackColor={{ true: colors.primary, false: colors.border }}
           />
         </Row>
-      </Section>
-
-      <Section title="Morning briefing" colors={colors} typography={typography}>
-        <TimeRow
-          label="Briefing time"
-          value={settings.morningTime}
-          colors={colors}
-          radius={radius.md}
-          onChange={(morningTime) => {
-            void updateSettings({ morningTime });
-            void reschedule({ morningTime });
-          }}
-        />
-      </Section>
-
-      <Section title="App feedback" colors={colors} typography={typography}>
-        <Text style={[styles.note, { color: colors.textSecondary }]}>
-          Improvements you capture about LifeOS — bugs, UX, feature ideas. Prefix with
-          &quot;fb:&quot; to force feedback routing.
-        </Text>
-        <Pressable
-          onPress={() => router.push('/feedback' as Href)}
-          style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
-          <Text style={[styles.reflectNowText, { color: colors.primary }]}>View app feedback</Text>
-        </Pressable>
-      </Section>
-
-      <Section title="Evening reflection" colors={colors} typography={typography}>
-        <Row label="Enable evening reflection" colors={colors}>
+        <Row label="End-of-day reminder review" colors={colors}>
           <Switch
-            value={settings.eveningEnabled}
-            onValueChange={(eveningEnabled) => {
-              void updateSettings({ eveningEnabled });
-              void reschedule({ eveningEnabled });
+            value={settings.reminderEodReviewEnabled}
+            disabled={!settings.notificationsEnabled}
+            onValueChange={(reminderEodReviewEnabled) => {
+              void updateSettings({ reminderEodReviewEnabled });
+              void reschedule({ reminderEodReviewEnabled });
             }}
             trackColor={{ true: colors.primary, false: colors.border }}
           />
         </Row>
-        {settings.eveningEnabled ? (
-          <TimeRow
-            label="Reflection time"
-            value={settings.eveningTime}
-            colors={colors}
-            radius={radius.md}
-            onChange={(eveningTime) => {
-              void updateSettings({ eveningTime });
-              void reschedule({ eveningTime });
-            }}
-          />
-        ) : null}
         <Text style={[styles.note, { color: colors.textSecondary }]}>
-          A short, optional moment — highlight, gratitude, and tomorrow&apos;s anchor. Always
-          skippable, never about what you didn&apos;t do.
+          Optional gentle check-in at your evening reflection time. Review reminders that fired
+          today — Done, defer, or note what&apos;s blocking.
         </Text>
         <Pressable
-          onPress={() => router.push('/reflect')}
+          onPress={() => router.push('/reminder-review' as Href)}
           style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
-          <Text style={[styles.reflectNowText, { color: colors.primary }]}>Reflect now</Text>
+          <Text style={[styles.reflectNowText, { color: colors.primary }]}>
+            Open reminder review
+          </Text>
         </Pressable>
       </Section>
-    </ScrollView>
+
+        <Section title="Morning briefing" colors={colors} typography={typography}>
+          <TimeRow
+            label="Briefing time"
+            value={settings.morningTime}
+            colors={colors}
+            radius={radius.md}
+            onChange={(morningTime) => {
+              void updateSettings({ morningTime });
+              void reschedule({ morningTime });
+            }}
+          />
+        </Section>
+
+        <Section title="App feedback" colors={colors} typography={typography}>
+          <Text style={[styles.note, { color: colors.textSecondary }]}>
+            Improvements about LifeOS itself — bugs, UX, feature ideas. Prefix with &quot;fb:&quot;
+            or use the button below. Idea threads use &quot;idea: ThreadName&quot;.
+          </Text>
+
+          {newCount > 0 ? (
+            <View style={[styles.newBadge, { backgroundColor: colors.accentWarm, borderRadius: radius.pill }]}>
+              <Text style={[styles.newBadgeText, { color: colors.primaryContrast }]}>
+                {newCount} new
+              </Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={() => setFeedbackModalVisible(true)}
+            style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
+            <Text style={[styles.reflectNowText, { color: colors.primary }]}>Give feedback</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={openFeedbackList}
+            style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
+            <Text style={[styles.reflectNowText, { color: colors.primary }]}>View app feedback</Text>
+          </Pressable>
+
+          <Row label="Weekly feedback nudge (Sundays 6pm)" colors={colors}>
+            <Switch
+              value={settings.feedbackWeeklyNudge}
+              disabled={!settings.notificationsEnabled}
+              onValueChange={(feedbackWeeklyNudge) => {
+                void updateSettings({ feedbackWeeklyNudge });
+                void reschedule({ feedbackWeeklyNudge });
+              }}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </Row>
+
+          <Pressable
+            onPress={() => void handleGenerateDigest()}
+            disabled={digestLoading}
+            style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
+            {digestLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={[styles.reflectNowText, { color: colors.primary }]}>
+                Generate feedback backlog
+              </Text>
+            )}
+          </Pressable>
+        </Section>
+
+        <Section title="AI usage" colors={colors} typography={typography}>
+          {aiUsageLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
+          ) : aiUsageError ? (
+            <Text style={[styles.note, { color: colors.danger }]}>{aiUsageError}</Text>
+          ) : aiUsageMonth && aiUsageAllTime ? (
+            <>
+              {aiUsageToday ? (
+                <>
+                  <Text style={[styles.usageLabel, { color: colors.textSecondary }]}>Today</Text>
+                  <Text style={[styles.usageTotal, { color: colors.textPrimary }]}>
+                    {formatUsd(aiUsageToday.totalCostUsd)}
+                  </Text>
+                  <Text style={[styles.note, { color: colors.textSecondary }]}>
+                    {aiUsageToday.callCount} calls
+                  </Text>
+                </>
+              ) : null}
+
+              <Text style={[styles.usageLabel, styles.usageLabelSpaced, { color: colors.textSecondary }]}>
+                This month
+              </Text>
+              <Text style={[styles.usageTotal, { color: colors.textPrimary }]}>
+                {formatUsd(aiUsageMonth.totalCostUsd)}
+              </Text>
+              <Text style={[styles.note, { color: colors.textSecondary }]}>
+                {aiUsageMonth.callCount} calls · {aiUsageMonth.totalInputTokens.toLocaleString()} in /{' '}
+                {aiUsageMonth.totalOutputTokens.toLocaleString()} out
+              </Text>
+
+              <Text style={[styles.usageLabel, styles.usageLabelSpaced, { color: colors.textSecondary }]}>
+                All time
+              </Text>
+              <Text style={[styles.usageTotal, { color: colors.textPrimary }]}>
+                {formatUsd(aiUsageAllTime.totalCostUsd)}
+              </Text>
+              <Text style={[styles.note, { color: colors.textSecondary }]}>
+                {aiUsageAllTime.callCount} calls · {aiUsageAllTime.totalInputTokens.toLocaleString()} in /{' '}
+                {aiUsageAllTime.totalOutputTokens.toLocaleString()} out
+              </Text>
+
+              {Object.entries(aiUsageMonth.byFunction).length > 0 ? (
+                <View style={styles.usageBreakdown}>
+                  <Text style={[styles.usageLabel, { color: colors.textSecondary }]}>
+                    This month by feature
+                  </Text>
+                  {Object.entries(aiUsageMonth.byFunction).map(([fn, stats]) => (
+                    <Text key={fn} style={[styles.usageRow, { color: colors.textSecondary }]}>
+                      {fn}: {formatUsd(stats.cost)} ({stats.calls}×)
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.note, { color: colors.textSecondary }]}>No usage recorded yet.</Text>
+          )}
+        </Section>
+
+        <Section title="Evening reflection" colors={colors} typography={typography}>
+          <Row label="Enable evening reflection" colors={colors}>
+            <Switch
+              value={settings.eveningEnabled}
+              onValueChange={(eveningEnabled) => {
+                void updateSettings({ eveningEnabled });
+                void reschedule({ eveningEnabled });
+              }}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </Row>
+          {settings.eveningEnabled ? (
+            <TimeRow
+              label="Reflection time"
+              value={settings.eveningTime}
+              colors={colors}
+              radius={radius.md}
+              onChange={(eveningTime) => {
+                void updateSettings({ eveningTime });
+                void reschedule({ eveningTime });
+              }}
+            />
+          ) : null}
+          <Text style={[styles.note, { color: colors.textSecondary }]}>
+            A short, optional moment — highlight, gratitude, and tomorrow&apos;s anchor. Always
+            skippable, never about what you didn&apos;t do.
+          </Text>
+          <Pressable
+            onPress={() => router.push('/reflect')}
+            style={[styles.reflectNow, { borderColor: colors.border, borderRadius: radius.md }]}>
+            <Text style={[styles.reflectNowText, { color: colors.primary }]}>Reflect now</Text>
+          </Pressable>
+        </Section>
+      </ScrollView>
+
+      <FeedbackCaptureModal
+        visible={feedbackModalVisible}
+        onClose={() => setFeedbackModalVisible(false)}
+        onSubmit={captureText}
+      />
+
+      <Modal visible={digestVisible} animationType="slide" onRequestClose={() => setDigestVisible(false)}>
+        <View style={[styles.digestRoot, { backgroundColor: colors.bg }]}>
+          <View style={[styles.digestHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[typography.title, { color: colors.textPrimary }]}>Feedback backlog</Text>
+            <Pressable onPress={() => setDigestVisible(false)} hitSlop={12}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>Close</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.digestBody}>
+            <Text style={[styles.digestText, { color: colors.textPrimary }]}>
+              {digestContent ?? ''}
+            </Text>
+          </ScrollView>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -253,6 +508,14 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 48,
   },
+  nameInput: {
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginTop: 12,
+    minHeight: 44,
+  },
   section: {
     marginBottom: 32,
   },
@@ -278,11 +541,22 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 16,
     flexShrink: 1,
+    paddingRight: 12,
   },
   note: {
     fontSize: 13,
     lineHeight: 19,
     marginTop: 8,
+  },
+  newBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 12,
+  },
+  newBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   reflectNow: {
     marginTop: 16,
@@ -323,5 +597,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 56,
     textAlign: 'center',
+  },
+  digestRoot: {
+    flex: 1,
+    paddingTop: 48,
+  },
+  digestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  digestBody: {
+    padding: 20,
+    paddingBottom: 48,
+  },
+  digestText: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  usageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginTop: 8,
+  },
+  usageLabelSpaced: {
+    marginTop: 16,
+  },
+  usageTotal: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  usageBreakdown: {
+    marginTop: 12,
+    gap: 4,
+  },
+  usageRow: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

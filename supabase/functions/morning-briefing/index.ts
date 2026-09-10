@@ -1,12 +1,28 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { handleCors, jsonResponse, getUserId } from '../_shared/cors.ts';
+import {
+  logAiUsage,
+  usageFromAnthropicResponse,
+} from '../_shared/ai-usage.ts';
+import {
+  appendMemoryToSystem,
+  fetchMemorySummary,
+  fetchProfileContext,
+} from '../_shared/memory.ts';
+import { createUserScopedClient } from '../_shared/service-client.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
+
+const BRIEFING_MODEL = 'claude-haiku-4-5-20251001';
 
 const BRIEFING_PROMPT = `You are generating a personal morning briefing.
 Tone: warm, direct, like a thoughtful friend who knows everything going on.
 Length: 150-200 words maximum. No headers. Flowing prose.
 Prioritize ruthlessly. Be human.`;
 
-async function generateBriefing(data: Record<string, unknown>): Promise<string> {
+async function generateBriefing(
+  data: Record<string, unknown>,
+  memorySummary: string,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createUserScopedClient>>['supabase'],
+): Promise<string> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY not configured');
@@ -20,9 +36,9 @@ async function generateBriefing(data: Record<string, unknown>): Promise<string> 
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: BRIEFING_MODEL,
       max_tokens: 512,
-      system: BRIEFING_PROMPT,
+      system: appendMemoryToSystem(BRIEFING_PROMPT, memorySummary),
       messages: [
         {
           role: 'user',
@@ -37,6 +53,15 @@ async function generateBriefing(data: Record<string, unknown>): Promise<string> 
   }
 
   const result = await response.json();
+  const usage = usageFromAnthropicResponse(result as Record<string, unknown>);
+  await logAiUsage(supabase, {
+    userId,
+    functionName: 'morning-briefing',
+    model: BRIEFING_MODEL,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+  });
+
   return result.content?.[0]?.text ?? 'Good morning. Ready for today.';
 }
 
@@ -47,21 +72,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    const userId = await getUserId(req);
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    const targetUserId = userId;
-    if (!targetUserId && !serviceKey) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
-    }
-
-    const effectiveUserId = targetUserId;
-    if (!effectiveUserId) {
-      return jsonResponse({ error: 'User context required' }, 401);
+    let supabase: Awaited<ReturnType<typeof createUserScopedClient>>['supabase'];
+    let userId: string;
+    try {
+      const scoped = await createUserScopedClient(req);
+      supabase = scoped.supabase;
+      userId = scoped.userId;
+    } catch (response) {
+      return response as Response;
     }
 
     const today = new Date().toISOString().slice(0, 10);
@@ -70,12 +88,10 @@ Deno.serve(async (req) => {
     const { data: entries } = await supabase
       .from('entries')
       .select('*')
-      .eq('user_id', effectiveUserId)
+      .eq('user_id', userId)
       .eq('status', 'pending');
 
-    const overdue = (entries ?? []).filter(
-      (e) => e.due_at && e.due_at < now,
-    );
+    const overdue = (entries ?? []).filter((e) => e.due_at && e.due_at < now);
     const highPriority = (entries ?? [])
       .filter((e) => e.priority === 'high')
       .slice(0, 3);
@@ -83,9 +99,14 @@ Deno.serve(async (req) => {
     const { data: reminders } = await supabase
       .from('reminders')
       .select('*')
-      .eq('user_id', effectiveUserId)
+      .eq('user_id', userId)
       .gte('fire_at', `${today}T00:00:00`)
       .lte('fire_at', `${today}T23:59:59`);
+
+    const [memorySummary, profileContext] = await Promise.all([
+      fetchMemorySummary(supabase, userId),
+      fetchProfileContext(supabase, userId),
+    ]);
 
     const briefingData = {
       overdue,
@@ -94,13 +115,18 @@ Deno.serve(async (req) => {
       learning_due: (entries ?? []).filter((e) => e.domain === 'learning'),
     };
 
-    const content = await generateBriefing(briefingData);
+    const content = await generateBriefing(
+      briefingData,
+      `${profileContext}${memorySummary}`,
+      userId,
+      supabase,
+    );
 
     const { data: briefing, error } = await supabase
       .from('briefings')
       .upsert(
         {
-          user_id: effectiveUserId,
+          user_id: userId,
           content,
           date: today,
           generated_at: now,

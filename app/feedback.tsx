@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useFeedback } from '@/hooks/useFeedback';
+import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import type { FeedbackSource, FeedbackStatus } from '@/types/feedback';
 
@@ -14,6 +16,7 @@ const SOURCE_LABELS: Record<FeedbackSource, string> = {
   capture: 'Capture',
   backfill: 'Recovered',
   chat: 'Chat',
+  journal: 'Journal',
 };
 
 function statusColor(status: FeedbackStatus, colors: ReturnType<typeof useTheme>['colors']): string {
@@ -29,7 +32,12 @@ function statusColor(status: FeedbackStatus, colors: ReturnType<typeof useTheme>
 
 export default function FeedbackScreen() {
   const { colors, typography, radius } = useTheme();
+  const { updateSettings } = useSettings();
   const { feedback, loading, error, updateStatus } = useFeedback();
+
+  useEffect(() => {
+    void updateSettings({ feedbackLastSeenAt: new Date().toISOString() });
+  }, [updateSettings]);
 
   if (loading) {
     return (

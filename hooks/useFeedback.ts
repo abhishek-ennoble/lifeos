@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { invokeFunction, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type { AppFeedback, FeedbackStatus } from '@/types/feedback';
 
 interface UseFeedbackResult {
   feedback: AppFeedback[];
   loading: boolean;
   error: string | null;
+  newCount: number;
   refresh: () => Promise<void>;
   updateStatus: (id: string, status: FeedbackStatus) => Promise<void>;
+}
+
+export interface FeedbackDigest {
+  id?: string;
+  content: string;
+  item_count: number;
+  generated_at: string;
 }
 
 function mapRow(row: Record<string, unknown>): AppFeedback {
@@ -26,7 +34,22 @@ function mapRow(row: Record<string, unknown>): AppFeedback {
   };
 }
 
-export function useFeedback(): UseFeedbackResult {
+export function countNewFeedback(
+  feedback: AppFeedback[],
+  lastSeenAt: string | null,
+): number {
+  return feedback.filter((item) => {
+    if (item.status !== 'new') {
+      return false;
+    }
+    if (!lastSeenAt) {
+      return true;
+    }
+    return item.created_at > lastSeenAt;
+  }).length;
+}
+
+export function useFeedback(lastSeenAt: string | null = null): UseFeedbackResult {
   const [feedback, setFeedback] = useState<AppFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,5 +109,11 @@ export function useFeedback(): UseFeedbackResult {
     [refresh],
   );
 
-  return { feedback, loading, error, refresh, updateStatus };
+  const newCount = countNewFeedback(feedback, lastSeenAt);
+
+  return { feedback, loading, error, newCount, refresh, updateStatus };
+}
+
+export async function generateFeedbackDigest(): Promise<FeedbackDigest> {
+  return invokeFunction<FeedbackDigest>('feedback-digest', {});
 }

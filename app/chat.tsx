@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,19 +11,27 @@ import {
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChat } from '@/hooks/useChat';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function ChatScreen() {
   const { colors, radius } = useTheme();
+  const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList>(null);
   const { messages, loading, error, sendMessage } = useChat();
-  // When opened from a journal entry ("Discuss with AI"), seed the input with
-  // the entry text so the conversation has it as context.
   const { seed } = useLocalSearchParams<{ seed?: string }>();
   const [input, setInput] = useState(
     seed ? `I wrote this in my journal:\n\n"${seed}"\n\nHelp me reflect on it.` : '',
   );
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      return;
+    }
+    listRef.current?.scrollToEnd({ animated: true });
+  }, [messages.length]);
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -38,13 +46,16 @@ export default function ChatScreen() {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.bg }]}
       behavior="padding"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 44 : 0}>
       <FlatList
+        ref={listRef}
+        style={styles.flex}
         data={messages}
         keyExtractor={(_, index) => String(index)}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 8 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         renderItem={({ item }) => {
           const isUser = item.role === 'user';
           return (
@@ -72,7 +83,8 @@ export default function ChatScreen() {
         }}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textSecondary }]}>
-            Ask: &quot;What should I focus on today?&quot;
+            Ask: &quot;What should I focus on today?&quot;{'\n\n'}
+            Read-only for now — use Home capture to save tasks and reminders.
           </Text>
         }
       />
@@ -82,7 +94,11 @@ export default function ChatScreen() {
       <View
         style={[
           styles.inputRow,
-          { borderTopColor: colors.border, backgroundColor: colors.surface },
+          {
+            borderTopColor: colors.border,
+            backgroundColor: colors.surface,
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
         ]}>
         <TextInput
           style={[
@@ -94,6 +110,7 @@ export default function ChatScreen() {
           placeholder="Ask LifeOS..."
           placeholderTextColor={colors.textSecondary}
           multiline
+          onFocus={() => listRef.current?.scrollToEnd({ animated: true })}
         />
         <Pressable
           style={[styles.sendButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}
@@ -114,9 +131,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   list: {
     padding: 16,
     paddingBottom: 8,
+    flexGrow: 1,
   },
   bubble: {
     maxWidth: '85%',
@@ -139,7 +160,8 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     gap: 8,
     borderTopWidth: 1,
   },

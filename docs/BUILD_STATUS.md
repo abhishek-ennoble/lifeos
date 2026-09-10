@@ -6,12 +6,16 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Feature | Status | Grounding |
 | --- | --- | --- |
 | Email/password auth (sign in / sign up) | ✅ | `components/AuthGate.tsx` (`signInWithPassword`, `signUp`) |
-| Text capture + AI classify → entry | ✅ | `hooks/useEntries.ts` `captureText` → `classify-entry` |
+| Text capture + AI classify → entry | ✅ | `captureText` → `classify-entry`; multi-item split returns `{ items: [...] }` |
 | App feedback capture (`fb:` + classifier) | ✅ | `classify-entry` feedback domain; routes to `app_feedback` table |
-| App feedback list (Settings) | ✅ | `app/feedback.tsx`, `hooks/useFeedback.ts` |
+| App feedback ritual + digest v0 | ✅ | Badge, Give feedback modal, weekly nudge, on-demand digest |
+| Idea threads v0 | ✅ | `idea: ThreadName` fast-path; inbox thread chips; EntryCard badge |
 | Brain dump capture | ✅ | `components/CaptureInput.tsx`, Home `index.tsx` |
-| Inbox: browse + filter by domain & life-area | ✅ | `app/(tabs)/inbox.tsx`, `InboxList` |
-| Inbox: sort (date, priority, due) | ⛔ | planned 1.2e — see `NEXT_AGENT_HANDOFF.md` |
+| Inbox: sort (newest, oldest, due, priority) | ✅ | Sort chips + `lib/inbox-query.ts`; persisted in settings |
+| Inbox: filters (pending, reminder, due date) | ✅ | Filters sheet in `InboxFiltersModal.tsx` |
+| Inbox: idea thread filter | ✅ | Thread chips when Ideas domain active; `lib/idea-threads.ts` |
+| Inbox: browse by domain & life-area | ✅ | `app/(tabs)/inbox.tsx`, `InboxList` |
+| Entry detail (tap card → full text) | ✅ | `EntryDetailModal` from `EntryCard` tap |
 | Home "Today" strip + mark done | ✅ | `app/(tabs)/index.tsx` `selectToday`, `updateEntryStatus` |
 | Status changes (done / archive=delete) | ✅ | `useEntries.ts` `updateEntryStatus`, `deleteEntry` |
 | Offline SQLite read-through cache | ✅ | `lib/sqlite.ts`, read before network in `refresh` |
@@ -19,31 +23,57 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Briefing auto-schedule (pg_cron) | ⛔ | `migrations/...pg_cron_jobs.sql` is fully commented out |
 | Anti-entropy stale banner | 🟡 | `useChat.ts` `useAntiEntropy` queries DB **directly**, not the function |
 | `anti-entropy` edge function | ⚙️ | deployed but app never calls it (DB query used instead) |
-| AI chat | 🟡 | works but **read-only** — answers over pending entries, cannot create/edit; keyboard fix uses `behavior="padding"` |
+| AI chat | 🟡 | works but **read-only** — answers over pending entries, cannot create/edit; input bar uses `KeyboardStickyView` |
 | Journal capture (manual) | ✅ | `useEntries.ts` `captureJournal`, `domain='journal'`, `status='done'` |
 | Journal/reflection **review UI** | 🟡 | no dedicated screen; appear only as a chip in Inbox list |
 | Evening reflection flow | ✅ | `app/reflect.tsx` → `captureJournal` |
 | Health daily reminders (local notif) | ✅ | `lib/notifications.ts` DAILY trigger from `metadata.times` |
 | Morning/evening ritual notifications | ✅ | `scheduleMorningBriefingNotification`, `scheduleEveningReflection` (DAILY) |
-| One-off / relative-time reminders | 🟡 | v2 ships local push; polish + accountability loop in 1.2d–1.2f |
+| Journal → app feedback scanner (1.2g) | ✅ | `scan-journal-feedback` after `captureJournal` |
+| AI usage tracking (1.4) | ✅ | `ai_usage` table; Settings → today + this month + all-time cost |
+| User memory injection (1.3) | ✅ | `user_memory` table; injected in classify/chat/briefing |
+| Display name personalization (FB-1) | ✅ | `user_preferences.preferences.display_name`; greeting (`lib/greeting.ts`) + briefing/chat prompts (`_shared/memory.ts`); Settings → Profile |
+| Onboarding v0 (FB-2/FB-3) | ✅ | `OnboardingGate`: name → notification opt-in → briefing nudge on by default; rituals re-applied per launch |
+| Reminder cloud telemetry (FB-4) | ✅ | `lib/reminder-sync.ts` writes `sent_at`/`acknowledged_at` on fire/ack |
+| Notification channels (FB-4) | ✅ | `channelId` on **trigger** (Expo v56 fix); `reminders` HIGH+sound, `rituals` LOW+silent |
+| Reminder quick-edit from entry detail (FB-6) | ✅ | `EntryDetailModal` → In 1 hour / Tomorrow 9am |
+| Unit tests (vitest) | ✅ | `npm test`; pure lib logic (`tests/`) |
+| Service-role security audit (1.1) | ✅ | `docs/SECURITY_AUDIT.md`; `npm run audit:service-role` |
+| One-off / relative-time reminders | 🟡 | v2 + 1.2d polish + 1.2f accountability loop |
 | `reminders` table rows → push | ✅ | Rows written at capture; local notif scheduled for all domains with remind intent |
-| Voice capture / transcription (in-app) | ⛔ | `components/VoiceInput.tsx` is a no-op toast ("coming soon") |
-| `transcribe-audio` (Whisper) backend | ⚙️ | function + `lib/whisper.ts` work, but app never calls them |
+| Voice capture / transcription (in-app) | 🟡 | Tap-to-record → Whisper → `captureText`; Home FAB, Brain dump, Journal draft, Reflect. 3 min cap. |
+| `transcribe-audio` (Whisper) backend | ✅ | `transcribe-audio` edge fn; invoked from `lib/whisper.ts` on voice capture |
 | Spaced repetition / learning sessions | 🟡 | `logLearningSession` exists; interval logic in `lib/spaced-repetition.ts`, limited UI |
 
 ## Known weak spots
-- **Reminder classifier UX** — bare "remind in X mins" → generic `note`/"Reminder"; inbox looks duplicate.
-- **Notification tap** — opens app, not the entry; no Done/Snooze from notif bar.
 - **Date extraction is unreliable** — classifier `due_at`/`expires_at` often wrong or empty.
-- **Voice capture stubbed** — `expo-av` removed (SDK 56 incompatible); `expo-audio` migration pending.
+- **Voice capture** — requires network for Whisper; audio deleted after transcript.
+- **Capture save feedback** — domain-aware toast ("Saved to Notes") with tap → Inbox highlight; Home "Just captured" strip; "Classifying…" loading state.
+- **Inbox + journals** — default "Pending only" filter now still shows `domain=journal` (saved as done).
+- **Ask AI keyboard** — `KeyboardAvoidingView` on chat screen; empty state notes read-only mode.
 - **No two-way sync** — SQLite is read cache only; mutations go straight to Supabase.
 
 ## Backend status
-Live: auth, Postgres DB (4 tables: `entries`, `reminders`, `briefings`, `app_feedback`,
-all RLS-protected), and 5 edge functions. AI works against Anthropic
+Live: auth, Postgres DB (8 tables: `entries`, `reminders`, `briefings`, `app_feedback`,
+`feedback_digests`, `user_preferences`, `user_memory`, `ai_usage`, all RLS-protected), and 7 edge functions. AI works against Anthropic
 (Claude Haiku/Sonnet) with available credits; transcription uses OpenAI Whisper.
 Secrets (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) live in Supabase function secrets,
 not the app. pg_cron scheduling is not enabled (jobs commented out).
 
 **Feedback backfill (2026-06-29):** 3 buried app-improvement items recovered from
 existing entries into `app_feedback` via `scripts/backfill-feedback.mjs`.
+
+**Latest APK:** `apk/27072026_170253/LifeOS.apk` — **1.1.0** (versionCode 4) Friend Beta build:
+FB-1…FB-6 (display-name personalization, onboarding v0, briefing nudge default-on,
+reminder telemetry + notification channel fix, feedback triage, per-day AI cost +
+reminder quick-edit). Built locally via `gradlew assembleRelease` on 2026-07-27.
+Pre-build verification all green (`npm run typecheck`, `npm test`,
+`npm run audit:service-role`, `node scripts/verify-friend-release.mjs`;
+`morning-briefing` + `ai-chat` redeployed).
+
+> Build note (Windows): if Gradle runs with a redirected `GRADLE_USER_HOME`
+> (e.g. a sandboxed temp dir), native C++ compiles fail with
+> "Filename longer than 260 characters". Fix: delete `node_modules/**/android/.cxx`
+> and rebuild with `$env:GRADLE_USER_HOME='C:\Users\hp\.gradle'`.
+
+**Previous APK:** `apk/17072026_152817/LifeOS.apk` — 1.0.2 (versionCode 3).

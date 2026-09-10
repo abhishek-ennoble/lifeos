@@ -1,4 +1,8 @@
-import { handleCors, jsonResponse, getUserId } from '../_shared/cors.ts';
+import { logAiUsage } from '../_shared/ai-usage.ts';
+import { createServiceClient, requireUserId } from '../_shared/service-client.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
+
+const WHISPER_MODEL = 'whisper-1';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -11,9 +15,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Method not allowed' }, 405);
     }
 
-    const userId = await getUserId(req);
-    if (!userId) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+    let userId: string;
+    try {
+      userId = await requireUserId(req);
+    } catch (response) {
+      return response as Response;
     }
 
     const { audio_base64: audioBase64, filename = 'recording.m4a' } = await req.json();
@@ -29,7 +35,7 @@ Deno.serve(async (req) => {
     const binary = Uint8Array.from(atob(audioBase64), (c) => c.charCodeAt(0));
     const formData = new FormData();
     formData.append('file', new Blob([binary]), filename);
-    formData.append('model', 'whisper-1');
+    formData.append('model', WHISPER_MODEL);
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -44,6 +50,16 @@ Deno.serve(async (req) => {
     }
 
     const result = await response.json();
+
+    const supabase = createServiceClient();
+    await logAiUsage(supabase, {
+      userId,
+      functionName: 'transcribe-audio',
+      model: WHISPER_MODEL,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+
     return jsonResponse({ text: result.text ?? '' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Transcription failed';

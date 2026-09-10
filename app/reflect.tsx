@@ -4,6 +4,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
+import { VoiceInput } from '@/components/VoiceInput';
 import { useEntries } from '@/hooks/useEntries';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -103,7 +104,21 @@ export default function ReflectScreen() {
             multiline
           />
         </View>
-      ))}
+        ))}
+
+        <View style={styles.voiceSection}>
+          <Text style={[styles.voiceHint, { color: colors.textSecondary }]}>
+            Or speak freely — saved as a journal entry.
+          </Text>
+          <VoiceInput
+            variant="inline"
+            onTranscribed={async (text) => {
+              await captureJournal({ text });
+              router.back();
+            }}
+            successToast={{ text1: 'Reflection saved', text2: 'Added to your journal' }}
+          />
+        </View>
 
       <Pressable
         style={[styles.save, { backgroundColor: colors.primary, borderRadius: radius.md }]}
@@ -139,6 +154,15 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: 20,
+  },
+  voiceSection: {
+    marginBottom: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  voiceHint: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   label: {
     fontSize: 16,

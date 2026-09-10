@@ -25,11 +25,9 @@ unchecked item, build it, check it off, update the relevant doc.
 
 > The whole rest of the roadmap stands on P1. Do not skip the audit.
 
-- [ ] **1.1 Service-role security audit** · M · **[Claude Code]**
-  Verify every service-role query in `ai-chat` and `morning-briefing` is
-  `user_id`-scoped (service role *bypasses RLS*). Add a test. **This must pass
-  before a second real user ever signs up** — cross-user leak risk otherwise.
-  *(Riskiest assumption in the whole product. See PRODUCT_EVOLUTION §Theme 2.)*
+- [x] **1.1 Service-role security audit** · M · **[Claude Code]**
+  Shared `createUserScopedClient`; all service-role queries user_id-scoped.
+  `docs/SECURITY_AUDIT.md` + `npm run audit:service-role`.
 
 - [x] **1.2 Feedback capture loop** · S–M · **[Claude Code]** (backend) → **[Cursor]** (settings list UI)
   - [x] Add `feedback` domain to `classify-entry` (+ `fb:` tag fast-path).
@@ -44,52 +42,87 @@ unchecked item, build it, check it off, update the relevant doc.
   `reminder_in_minutes` / `remind_at` / `due_at` + local push. Health daily unchanged.
   *User-tested 2026-06-30: push works; gaps → 1.2d–1.2f.*
 
-- [ ] **1.2d Reminder UX polish** · S · **[Cursor]**
-  Classifier: remind intent → **task** with real title (not generic `note`/"Reminder").
-  EntryCard 🔔 badge; notification tap → open entry; Android channel (sound/importance).
-  See [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) §2.
+- [x] **1.2d Reminder UX polish** · S · **[Cursor]**
+  Classifier remind→task + title fix; multi-item `{ items }` API; EntryCard 🔔 badge;
+  notification tap → inbox highlight; Android HIGH channel. *Notif actions → 1.2f.*
 
-- [ ] **1.2e Inbox sort & filter** · S · **[Cursor]**
-  Sort: newest/oldest, due soonest, priority (high→low). Filter: has reminder, status.
-  Client-side in `InboxList`; persist sort in settings.
+- [x] **1.2g Feedback ritual (v0)** · S · **[Cursor]**
+  Settings badge + "Give feedback" modal (`fb:` pre-fill); weekly Sunday nudge toggle;
+  notification tap → feedback capture. *Journal scanner still deferred.*
 
-- [ ] **1.2f Reminder accountability loop (v3)** · M · **[Claude Code]** + **[Cursor]**
-  Supportive follow-up: notif actions (Done/Snooze), optional EOD gentle review,
-  horizon-aware re-nudge (10 min ≠ 7 days), blocked → optional linked task.
-  Design principle: sparse, skippable, not nagging. See handoff doc §2.
+- [x] **2.1-lite On-demand feedback digest (v0)** · S · **[Claude Code]** + **[Cursor]**
+  `feedback-digest` edge fn + `feedback_digests` table; Settings → "Generate feedback backlog"
+  (Haiku clusters/prioritizes open items). *Scheduled pg_cron digest still → full 2.1.*
 
-- [ ] **1.2c Voice capture** · S–M · **[Cursor]**
-  Migrate `VoiceInput` from stub to `expo-audio` → `transcribe-audio` → `captureText`.
-  Backend ready. **After 1.2d** (or parallel). See handoff doc §4.
+- [x] **Idea threads v0** · S · **[Cursor]**
+  `idea: ThreadName` fast-path in classify; `metadata.thread`; inbox thread chips + EntryCard badge.
 
-- [ ] **1.2g Feedback: journal scanner + ritual** · S · **[Claude Code]** + **[Cursor]**
-  Journal → detect app feedback → `app_feedback`; Settings nudge + `fb:` shortcut + badge.
-  *Deferred digest → 2.1.*
+- [x] **1.2e Inbox sort & filter** · S · **[Cursor]**
+  Sort: newest/oldest, due soonest, priority. Filters: pending only, has reminder, has due date.
+  Persisted in `useSettings`; `lib/inbox-query.ts`.
 
-- [ ] **1.3 Per-user preferences + memory tables** · M · **[Claude Code]**
-  `user_preferences` (explicit settings) + `user_memory` (AI-inferred patterns).
-  Inject a compact memory summary into `classify-entry` / `ai-chat` /
-  `morning-briefing` prompts. *Depends on 1.1.*
+- [x] **1.2f Reminder accountability loop (v3)** · M · **[Claude Code]** + **[Cursor]**
+  Notif actions Done/Snooze; horizon-aware snooze limits; +4h same-day follow-up;
+  EOD review screen + Settings toggle; blocked note + linked follow-up task.
 
-- [ ] **1.4 Token-usage / cost tracking (the spend indicator)** · S–M · **[Claude Code]**
-  *(Your request — start simple, grow into per-user billing later.)*
-  - Capture `usage.input_tokens` / `output_tokens` from every Claude/OpenAI
-    response in the edge functions.
-  - New `ai_usage` table: `id, user_id, function, model, input_tokens,
-    output_tokens, est_cost_usd, created_at`. Cost estimated from a small
-    model→price map kept in one place.
-  - A lightweight usage view (Settings → "AI usage this month") so you can see
-    spend at a glance and never get surprised.
-  - Foundation for: per-user quotas, the premium tier, and abuse caps once
-    others use it. Ties into `agent_runs.cost_tokens` from the agent platform (2.3).
+- [x] **1.2c Voice capture** · S–M · **[Cursor]**
+  Tap-to-record, 3 min cap, journal + reflect voice; multi-item split on classify.
+
+- [x] **1.2g Feedback: journal scanner** · S · **[Claude Code]**
+  `scan-journal-feedback` edge fn; Haiku detects app feedback in journals → `app_feedback`.
+
+- [x] **1.3 Per-user preferences + memory tables** · M · **[Claude Code]**
+  `user_preferences` + `user_memory` tables; memory summary injected into classify/chat/briefing/journal-scan.
+
+- [x] **1.4 Token-usage / cost tracking** · S–M · **[Claude Code]**
+  `ai_usage` table; all Claude/Whisper edge fns log tokens; Settings → AI usage this month.
+
+- [ ] **1.3b Pattern learning job** · M · **[Claude Code]**
+  Scheduled `learn-patterns` → populate `user_memory`. *Tables ready; job → 2.2.*
+
+---
+
+## Phase 1.5 — Friend Beta (current milestone, 2026-07-27)
+
+> Goal: hand the app to a few friends and **measure whether they benefit**.
+> Driven by usage introspection + feedback analysis (`FEEDBACK_ANALYSIS.md`).
+> Beta success criteria per friend (measured via `scripts/introspect-usage.mjs`):
+> returned on 3+ separate days in week 1 · ≥1 real (non-test) capture ·
+> ≥1 reminder acknowledged · knows how to send `fb:` feedback.
+
+- [x] **FB-1 Personalized identity** · S · **[Cursor]** *(2026-07-27)*
+  Display name in `user_preferences.preferences` → home greeting (`lib/greeting.ts`,
+  `hooks/useProfile.ts`) + briefing/chat prompts (`_shared/memory.ts
+  fetchProfileContext`, deployed). Settings → Profile edit. Fixes F19/D1.
+- [x] **FB-2 Onboarding v0** · S–M · **[Cursor]** *(2026-07-27)*
+  `components/OnboardingGate.tsx`: name → notification opt-in → home guided
+  capture. Skipped when account already has a name (reinstall-safe).
+- [x] **FB-3 Morning brief on by default** · S · **[Cursor]** *(2026-07-27)*
+  Onboarding opt-in enables notifications + schedules the daily nudge; rituals
+  re-applied every launch (`NotificationRouter`).
+- [x] **FB-4 Reminder telemetry + channels** · S · **[Cursor]** *(2026-07-27)*
+  `lib/reminder-sync.ts` writes `sent_at`/`acknowledged_at`. Fixed Android
+  channel bug (channelId moved to trigger per Expo v56); reminders = HIGH+sound,
+  new `rituals` channel = LOW+silent.
+- [x] **FB-5 Feedback triage pass** · S · **[Cursor]** *(2026-07-27)*
+  `scripts/triage-feedback.mjs` ran: 17 triaged, 2 done (F4, F8). 0 left at `new`.
+- [x] **FB-6 Small-UX batch** · S · **[Cursor]** *(2026-07-27)*
+  Per-day AI cost in Settings (F6) · reminder quick-edit in entry detail (F5) ·
+  timestamps in detail modal verified already shipped (F11).
+- [ ] **FB-7 Beta build & rollout** · S · **[Claude Code]** *(build done 2026-07-27)*
+  ✅ Version bumped to 1.1.0 (versionCode 4) + local `gradlew assembleRelease` →
+  `apk/27072026_170253/LifeOS.apk`. Remaining: share APK with 2–3 friends →
+  measure week-1 with `scripts/introspect-usage.mjs` against the success criteria.
+
+**Next after beta ships:** the **let-go/triage slice** (F7, F12–F14, F17 stage 1)
+— weekly stale review: Keep / Done / Let go, reward on cleared inbox.
 
 ---
 
 ## Phase 2 — Learning & agents
 
-- [ ] **2.1 Feedback digest** · M · **[Claude Code]**
-  Scheduled `feedback-digest` fn: cluster duplicates, prioritize
-  (severity×frequency×recency), emit a Markdown backlog a dev/agent acts on.
+- [ ] **2.1 Feedback digest (scheduled)** · M · **[Claude Code]**
+  pg_cron weekly `feedback-digest`; auto-push or in-app card. *On-demand v0 shipped.*
 
 - [ ] **2.2 Pattern learning** · M · **[Claude Code]**
   Scheduled `learn-patterns` fn summarizes recent entries/journals into
@@ -116,6 +149,13 @@ unchecked item, build it, check it off, update the relevant doc.
   Research agents over existing `domain='idea'` entries (web_search → summarize →
   estimate value). Behind a **premium** flag. Built on the agent platform (2.3).
 
+- [ ] **3.2b Stale-item research agent (F20)** · M–L · **[Claude Code]**
+  User-configurable: important item pending N days (e.g. 15) → research agent
+  decomposes it and suggests concrete next steps (e.g. "ultrasound pending →
+  here are nearby well-rated options"), then offers related follow-ups.
+  Token-heavy → **premium tier**. Depends on 2.3; stage 1 (non-AI stale surfacing)
+  ships in the let-go slice.
+
 - [ ] **3.3 User-authored agents** · L
   UI to create/tune `agents` rows; write tools with confirmation. *Depends on 2.3.*
 
@@ -137,7 +177,7 @@ unchecked item, build it, check it off, update the relevant doc.
 
 ```
 1.2b reminders v2 ─► 1.2d polish ─► 1.2e inbox sort ─► 1.2f accountability loop
-1.2c voice ──────────── (after 1.2d, before 1.3)
+1.2c voice ──────────── shipped (2026-06-30); device test pending
 1.2g feedback ritual ── (parallel after polish)
 1.1 service-role audit ─► multi-tenant ─► 1.3 memory ─► personalization
 1.2 feedback capture ─► 2.1 feedback digest
@@ -146,6 +186,4 @@ unchecked item, build it, check it off, update the relevant doc.
 2.4 config home ──────► 4.1 atomic layout (optional)
 ```
 
-**Next agent:** read [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) then start **1.2d**.
-
-**Do first (near term):** 1.2d + 1.2e — reminder trust + inbox usability before v3 loop.
+**Next agent:** read [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) then start **1.2e** inbox sort.

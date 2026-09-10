@@ -9,6 +9,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthGate } from '@/components/AuthGate';
+import { NotificationRouter } from '@/components/NotificationRouter';
+import { OnboardingGate } from '@/components/OnboardingGate';
 import { useTheme } from '@/hooks/useTheme';
 import { SettingsProvider } from '@/hooks/useSettings';
 
@@ -46,8 +48,11 @@ export default function RootLayout() {
       <KeyboardProvider>
         <SettingsProvider>
           <AuthGate>
-            <RootLayoutNav />
-            <Toast />
+            <OnboardingGate>
+              <NotificationRouter />
+              <RootLayoutNav />
+              <Toast />
+            </OnboardingGate>
           </AuthGate>
         </SettingsProvider>
       </KeyboardProvider>
@@ -91,6 +96,7 @@ function RootLayoutNav() {
         <Stack.Screen name="journal" options={{ title: 'Journal' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="feedback" options={{ title: 'App Feedback' }} />
+        <Stack.Screen name="reminder-review" options={{ title: 'Reminder review' }} />
         <Stack.Screen
           name="reflect"
           options={{ title: 'Evening reflection', presentation: 'modal' }}

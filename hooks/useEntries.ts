@@ -11,7 +11,7 @@ import {
 } from '@/lib/notifications';
 import { planRemindersForEntry } from '@/lib/reminder-plan';
 import type { CaptureResult } from '@/types/capture';
-import type { ClassifiedEntry, Entry, EntryMetadata, JournalMetadata } from '@/types/entry';
+import type { ClassifiedEntry, ClassifyResponse, Entry, EntryMetadata, JournalMetadata } from '@/types/entry';
 import type { Json } from '@/lib/database.types';
 
 export interface JournalInput {
@@ -115,12 +115,66 @@ export function useEntries(domain?: Domain): UseEntriesResult {
     void refresh();
   }, [refresh]);
 
+  const insertClassifiedEntry = useCallback(
+    async (classified: ClassifiedEntry, rawInput: string, userId: string): Promise<Entry> => {
+      const metadataWithLifeArea: EntryMetadata | null = classified.life_area
+        ? ({ ...(classified.metadata ?? {}), life_area: classified.life_area } as EntryMetadata)
+        : classified.metadata;
+
+      const insertPayload = {
+        user_id: userId,
+        raw_input: rawInput,
+        domain: classified.domain,
+        title: classified.title,
+        description: classified.description,
+        metadata: metadataWithLifeArea as Json | null,
+        priority: classified.priority,
+        status: 'pending' as const,
+        is_recurring: classified.is_recurring,
+        recurrence_rule: classified.recurrence_rule,
+        due_at: classified.due_at,
+        expires_at: classified.expires_at,
+      };
+
+      const { data, error: insertError } = await supabase
+        .from('entries')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      const entry = mapRow(data as Record<string, unknown>);
+      await upsertCachedEntry(entry);
+
+      const reminderPlan = planRemindersForEntry(entry);
+      if (reminderPlan.length > 0) {
+        await requestNotificationPermissions();
+        const rows = buildReminderRows(entry, userId);
+        if (rows.length > 0) {
+          await supabase.from('reminders').insert(rows);
+        }
+        await scheduleEntryReminders(entry);
+      }
+
+      return entry;
+    },
+    [],
+  );
+
   const captureText = useCallback(
     async (rawInput: string): Promise<CaptureResult | null> => {
       try {
-        const classified = await invokeFunction<ClassifiedEntry>('classify-entry', {
+        const response = await invokeFunction<ClassifyResponse>('classify-entry', {
           raw_input: rawInput,
         });
+
+        const items = response.items ?? [];
+        if (items.length === 0) {
+          throw new Error('Nothing to capture');
+        }
 
         const {
           data: { user },
@@ -130,7 +184,10 @@ export function useEntries(domain?: Domain): UseEntriesResult {
           throw new Error('Not authenticated');
         }
 
-        if (classified.domain === 'feedback') {
+        const feedbackItems = items.filter((item) => item.domain === 'feedback');
+        const entryItems = items.filter((item) => item.domain !== 'feedback');
+
+        for (const classified of feedbackItems) {
           const theme =
             classified.metadata && typeof classified.metadata === 'object'
               ? String((classified.metadata as Record<string, unknown>).theme ?? '') || null
@@ -148,63 +205,32 @@ export function useEntries(domain?: Domain): UseEntriesResult {
           if (feedbackError) {
             throw feedbackError;
           }
+        }
 
+        if (entryItems.length === 0) {
           return { kind: 'feedback' };
         }
 
-        // Fold the classifier's optional life-area tag into metadata so it
-        // surfaces in Inbox filters without a separate column.
-        const metadataWithLifeArea: EntryMetadata | null = classified.life_area
-          ? ({ ...(classified.metadata ?? {}), life_area: classified.life_area } as EntryMetadata)
-          : classified.metadata;
-
-        const insertPayload = {
-          user_id: user.id,
-          raw_input: rawInput,
-          domain: classified.domain,
-          title: classified.title,
-          description: classified.description,
-          metadata: metadataWithLifeArea as Json | null,
-          priority: classified.priority,
-          status: 'pending' as const,
-          is_recurring: classified.is_recurring,
-          recurrence_rule: classified.recurrence_rule,
-          due_at: classified.due_at,
-          expires_at: classified.expires_at,
-        };
-
-        const { data, error: insertError } = await supabase
-          .from('entries')
-          .insert(insertPayload)
-          .select('*')
-          .single();
-
-        if (insertError) {
-          throw insertError;
-        }
-
-        const entry = mapRow(data as Record<string, unknown>);
-        await upsertCachedEntry(entry);
-
-        const reminderPlan = planRemindersForEntry(entry);
-        if (reminderPlan.length > 0) {
-          await requestNotificationPermissions();
-          const rows = buildReminderRows(entry, user.id);
-          if (rows.length > 0) {
-            await supabase.from('reminders').insert(rows);
-          }
-          await scheduleEntryReminders(entry);
+        const saved: Entry[] = [];
+        for (const classified of entryItems) {
+          const entry = await insertClassifiedEntry(classified, rawInput, user.id);
+          saved.push(entry);
         }
 
         await refresh();
-        return { kind: 'entry', entry };
+
+        if (saved.length === 1) {
+          return { kind: 'entry', entry: saved[0] };
+        }
+
+        return { kind: 'entries', entries: saved, count: saved.length };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to capture entry';
         setError(message);
         throw new Error(message);
       }
     },
-    [refresh],
+    [insertClassifiedEntry, refresh],
   );
 
   const captureJournal = useCallback(
@@ -256,6 +282,16 @@ export function useEntries(domain?: Domain): UseEntriesResult {
         const entry = mapRow(data as Record<string, unknown>);
         await upsertCachedEntry(entry);
         await refresh();
+
+        if (isSupabaseConfigured) {
+          void invokeFunction<{ detected?: boolean }>('scan-journal-feedback', {
+            journal_text: input.text,
+            entry_id: entry.id,
+          }).catch(() => {
+            // Journal feedback scan is best-effort
+          });
+        }
+
         return entry;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save journal';

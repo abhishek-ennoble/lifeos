@@ -8,11 +8,17 @@ import Toast from 'react-native-toast-message';
 import { BrainDumpModal, CaptureInput } from '@/components/CaptureInput';
 import { MorningBriefing } from '@/components/MorningBriefing';
 import { VoiceInput } from '@/components/VoiceInput';
+import { DOMAIN_LABELS } from '@/constants/domains';
 import { useAntiEntropy } from '@/hooks/useChat';
 import { useBriefing } from '@/hooks/useBriefing';
 import { useEntries } from '@/hooks/useEntries';
+import { useFeedback } from '@/hooks/useFeedback';
+import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
-import { selectToday, todayMeta } from '@/lib/entry-utils';
+import { useProfile } from '@/hooks/useProfile';
+import { showCaptureSuccessToast } from '@/lib/capture-toast';
+import { selectRecentCaptures, selectToday, todayMeta } from '@/lib/entry-utils';
+import { greetingForHour } from '@/lib/greeting';
 import { requestNotificationPermissions } from '@/lib/notifications';
 
 const ONBOARDING_EXAMPLES = [
@@ -21,34 +27,20 @@ const ONBOARDING_EXAMPLES = [
   'Practice guitar daily at 7pm',
 ];
 
-function timeAwareGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) {
-    return 'Still up, Abhishek';
-  }
-  if (hour < 12) {
-    return 'Good morning, Abhishek';
-  }
-  if (hour < 17) {
-    return 'Good afternoon, Abhishek';
-  }
-  return 'Good evening, Abhishek';
-}
-
 export default function HomeScreen() {
   const { colors, spacing, typography } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { entries, captureText, updateEntryStatus } = useEntries();
+  const { settings } = useSettings();
+  const { newCount: newFeedbackCount } = useFeedback(settings.feedbackLastSeenAt);
   const { briefing, loading: briefingLoading, generateBriefing } = useBriefing();
   const { staleCount } = useAntiEntropy();
+  const { profile } = useProfile();
   const [brainDumpVisible, setBrainDumpVisible] = useState(false);
 
   const today = useMemo(() => selectToday(entries, 3), [entries]);
-
-  const handleVoiceCapture = async (text: string) => {
-    await captureText(text);
-  };
+  const recentCaptures = useMemo(() => selectRecentCaptures(entries, 3), [entries]);
 
   const setupNotifications = async () => {
     const granted = await requestNotificationPermissions();
@@ -69,18 +61,25 @@ export default function HomeScreen() {
         <View style={styles.topRow}>
           <View style={{ flex: 1 }} />
           <Link href="/settings" asChild>
-            <Pressable hitSlop={12} accessibilityLabel="Settings">
+            <Pressable hitSlop={12} accessibilityLabel="Settings" style={styles.settingsButton}>
               <SymbolView
                 name={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
                 size={22}
                 tintColor={colors.textSecondary}
               />
+              {newFeedbackCount > 0 ? (
+                <View style={[styles.settingsBadge, { backgroundColor: colors.accentWarm }]}>
+                  <Text style={[styles.settingsBadgeText, { color: colors.primaryContrast }]}>
+                    {newFeedbackCount > 9 ? '9+' : newFeedbackCount}
+                  </Text>
+                </View>
+              ) : null}
             </Pressable>
           </Link>
         </View>
 
         <MorningBriefing
-          greeting={timeAwareGreeting()}
+          greeting={greetingForHour(new Date().getHours(), profile.displayName)}
           briefing={briefing}
           loading={briefingLoading}
           onGenerate={() => void generateBriefing()}
@@ -89,6 +88,35 @@ export default function HomeScreen() {
         <View style={styles.captureSection}>
           <CaptureInput onSubmit={captureText} />
         </View>
+
+        {recentCaptures.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[typography.title, styles.sectionTitle, { color: colors.textPrimary }]}>
+              Just captured
+            </Text>
+            {recentCaptures.map((entry) => (
+              <Pressable
+                key={entry.id}
+                style={styles.todayRow}
+                onPress={() =>
+                  router.push({
+                    pathname: '/inbox',
+                    params: { highlightEntryId: entry.id },
+                  })
+                }>
+                <View style={[styles.dot, { backgroundColor: colors.domain[entry.domain] }]} />
+                <View style={styles.recentText}>
+                  <Text style={[styles.todayTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {entry.title}
+                  </Text>
+                  <Text style={[styles.recentDomain, { color: colors.textSecondary }]}>
+                    {DOMAIN_LABELS[entry.domain]}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {staleCount > 0 ? (
           <Link href="/anti-entropy" asChild>
@@ -116,7 +144,10 @@ export default function HomeScreen() {
                   <Pressable
                     key={example}
                     style={[styles.exampleChip, { borderColor: colors.border }]}
-                    onPress={() => void captureText(example)}>
+                    onPress={async () => {
+                      const result = await captureText(example);
+                      showCaptureSuccessToast(result);
+                    }}>
                     <Text style={[styles.exampleText, { color: colors.textPrimary }]}>
                       {example}
                     </Text>
@@ -179,7 +210,7 @@ export default function HomeScreen() {
       </ScrollView>
 
       <View style={[styles.fabBar, { bottom: insets.bottom + 24 }]} pointerEvents="box-none">
-        <VoiceInput variant="fab" onTranscribed={handleVoiceCapture} />
+        <VoiceInput variant="fab" onTranscribed={captureText} />
       </View>
 
       <BrainDumpModal
@@ -220,7 +251,26 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginBottom: 8,
+  },
+  settingsButton: {
+    position: 'relative',
+  },
+  settingsBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  settingsBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   staleBanner: {
     borderRadius: 12,
@@ -252,6 +302,14 @@ const styles = StyleSheet.create({
   todayTitle: {
     flex: 1,
     fontSize: 16,
+  },
+  recentText: {
+    flex: 1,
+    gap: 2,
+  },
+  recentDomain: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   todayMeta: {
     fontSize: 13,

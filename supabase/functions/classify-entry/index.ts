@@ -1,4 +1,11 @@
 import { corsHeaders, handleCors, jsonResponse, getUserId } from '../_shared/cors.ts';
+import { logAiUsage, usageFromAnthropicResponse } from '../_shared/ai-usage.ts';
+import { appendMemoryToSystem, fetchMemorySummary } from '../_shared/memory.ts';
+import { createServiceClient } from '../_shared/service-client.ts';
+
+const CLASSIFY_MODEL = 'claude-haiku-4-5-20251001';
+
+const ITEM_SCHEMA = `Each item object has keys: domain, title, description, priority, is_recurring, recurrence_rule, metadata, life_area, expires_at, due_at, confidence`;
 
 const CLASSIFY_SYSTEM_PROMPT = `You are the AI router for a personal life management app called LifeOS.
 Your job: read the user's input and extract structured data.
@@ -29,18 +36,33 @@ Rules:
   - reminder_in_minutes (integer) for "in X minutes/hours" (convert hours to minutes)
   - remind_at (ISO8601) for "remind me at 3pm tomorrow" or specific datetime
   - wants_reminder (true) when remind intent exists; also set due_at when a deadline is given
+- Reminder + content → domain MUST be "task" with a specific title (subject of the reminder), NOT "note"
+- Bare "remind me in X" with no subject → still "task", title like "Reminder: {short snippet from input}"
+- Never use generic title "Reminder" alone — always include context from the input
 - Set priority "high" for health/medicine, "medium" default, "low" for vague future items
 - Include "life_area" (one of the five values above, or null)
-- Always return valid JSON matching the schema. No prose, no explanation.
+- Always return valid JSON. No prose, no explanation.
 - If idea: set research_ready: false always (research is a future feature)
+- If idea: set metadata.thread to a short project label when the input names a recurring theme (e.g. "LifeOS agents", "MedTracker"); omit if none
 
-Return JSON with keys: domain, title, description, priority, is_recurring, recurrence_rule, metadata, life_area, expires_at, due_at, confidence`;
+Multi-item input:
+- When the user lists multiple distinct items (numbered list, "and also", "plus", several ideas/tasks in one message), return JSON: { "items": [ ... ] } with up to 5 items.
+- Each item is independent with its own domain, title, and metadata.
+- When only one item, still return { "items": [ single item ] }.
+${ITEM_SCHEMA}`;
 
-async function classifyWithClaude(rawInput: string): Promise<Record<string, unknown>> {
+async function classifyWithClaude(
+  rawInput: string,
+  userId: string,
+): Promise<Record<string, unknown>> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY not configured');
   }
+
+  const supabase = createServiceClient();
+  const memorySummary = await fetchMemorySummary(supabase, userId);
+  const system = appendMemoryToSystem(CLASSIFY_SYSTEM_PROMPT, memorySummary);
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -50,9 +72,9 @@ async function classifyWithClaude(rawInput: string): Promise<Record<string, unkn
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: CLASSIFY_SYSTEM_PROMPT,
+      model: CLASSIFY_MODEL,
+      max_tokens: 2048,
+      system,
       messages: [{ role: 'user', content: rawInput }],
     }),
   });
@@ -63,6 +85,15 @@ async function classifyWithClaude(rawInput: string): Promise<Record<string, unkn
   }
 
   const data = await response.json();
+  const usage = usageFromAnthropicResponse(data as Record<string, unknown>);
+  await logAiUsage(supabase, {
+    userId,
+    functionName: 'classify-entry',
+    model: CLASSIFY_MODEL,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+  });
+
   const text = data.content?.[0]?.text ?? '';
 
   const jsonText = extractFirstJsonObject(text);
@@ -71,6 +102,57 @@ async function classifyWithClaude(rawInput: string): Promise<Record<string, unkn
   }
 
   return JSON.parse(jsonText);
+}
+
+function buildIdeaFastPath(rawInput: string): Record<string, unknown> | null {
+  const trimmed = rawInput.trim();
+  const prefixMatch = /^idea:\s*/i.exec(trimmed);
+  if (!prefixMatch) {
+    return null;
+  }
+
+  const afterPrefix = trimmed.slice(prefixMatch[0].length).trim();
+  if (!afterPrefix) {
+    return null;
+  }
+
+  let thread: string;
+  let body: string;
+
+  const dashSplit = afterPrefix.match(/^([^-\n]+?)\s*[-–—]\s*([\s\S]+)$/);
+  if (dashSplit) {
+    thread = dashSplit[1].trim();
+    body = dashSplit[2].trim();
+  } else {
+    const lines = afterPrefix.split('\n');
+    thread = lines[0]?.trim() ?? '';
+    body = lines.slice(1).join('\n').trim();
+    if (!body) {
+      body = thread;
+      thread = 'General';
+    }
+  }
+
+  const firstLine = body.split('\n')[0]?.trim() ?? body;
+  const title = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine;
+
+  return {
+    items: [
+      {
+        domain: 'idea',
+        title,
+        description: body,
+        priority: 'medium',
+        is_recurring: false,
+        recurrence_rule: null,
+        metadata: { tag: 'personal', research_ready: false, thread },
+        life_area: null,
+        expires_at: null,
+        due_at: null,
+        confidence: 1,
+      },
+    ],
+  };
 }
 
 function buildFeedbackFastPath(rawInput: string): Record<string, unknown> | null {
@@ -89,23 +171,105 @@ function buildFeedbackFastPath(rawInput: string): Record<string, unknown> | null
   const title = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine;
 
   return {
-    domain: 'feedback',
-    title,
-    description: body,
-    priority: 'medium',
-    is_recurring: false,
-    recurrence_rule: null,
-    metadata: { theme: 'general' },
-    life_area: null,
-    expires_at: null,
-    due_at: null,
-    confidence: 1,
+    items: [
+      {
+        domain: 'feedback',
+        title,
+        description: body,
+        priority: 'medium',
+        is_recurring: false,
+        recurrence_rule: null,
+        metadata: { theme: 'general' },
+        life_area: null,
+        expires_at: null,
+        due_at: null,
+        confidence: 1,
+      },
+    ],
   };
 }
 
+function hasReminderIntent(item: Record<string, unknown>): boolean {
+  const meta =
+    item.metadata && typeof item.metadata === 'object'
+      ? (item.metadata as Record<string, unknown>)
+      : {};
+  return (
+    (typeof meta.reminder_in_minutes === 'number' && meta.reminder_in_minutes > 0) ||
+    typeof meta.remind_at === 'string' ||
+    meta.wants_reminder === true
+  );
+}
+
+function normalizeReminderItem(item: Record<string, unknown>, rawInput: string): void {
+  if (!hasReminderIntent(item)) {
+    return;
+  }
+
+  if (item.domain === 'note') {
+    item.domain = 'task';
+  }
+
+  const title = String(item.title ?? '').trim();
+  if (!title || title.toLowerCase() === 'reminder') {
+    const snippet = rawInput.trim().replace(/\s+/g, ' ').slice(0, 80);
+    item.title = snippet ? `Reminder: ${snippet}` : 'Reminder: follow up';
+  }
+
+  item.expires_at = null;
+}
+
+function normalizeClassifiedItem(
+  item: Record<string, unknown>,
+  rawInput: string,
+): Record<string, unknown> {
+  normalizeReminderItem(item, rawInput);
+
+  if (item.domain === 'note' && !item.expires_at) {
+    const hours =
+      (item.metadata as { expires_in_hours?: number })?.expires_in_hours ?? 24;
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + hours);
+    item.expires_at = expiresAt.toISOString();
+  }
+
+  if (item.domain === 'idea' && item.metadata && typeof item.metadata === 'object') {
+    const meta = item.metadata as Record<string, unknown>;
+    meta.research_ready = false;
+    if (typeof meta.thread === 'string') {
+      const trimmed = meta.thread.trim();
+      if (trimmed) {
+        meta.thread = trimmed;
+      } else {
+        delete meta.thread;
+      }
+    }
+  }
+
+  const allowedLifeAreas = ['spiritual', 'creative', 'technical', 'family', 'finance'];
+  const lifeArea = item.life_area;
+  item.life_area =
+    typeof lifeArea === 'string' && allowedLifeAreas.includes(lifeArea) ? lifeArea : null;
+
+  return item;
+}
+
+function extractItems(parsed: Record<string, unknown>, rawInput: string): Record<string, unknown>[] {
+  if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+    return parsed.items
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
+      .slice(0, 5)
+      .map((item) => normalizeClassifiedItem(item, rawInput));
+  }
+
+  if (parsed.domain) {
+    return [normalizeClassifiedItem(parsed, rawInput)];
+  }
+
+  throw new Error('Invalid classification response');
+}
+
 // Pull the first complete, brace-balanced JSON object out of the model's reply.
-// Handles markdown ```json fences and any prose/extra content the model appends
-// after the object (a naive greedy `{...}` match breaks on trailing text).
 function extractFirstJsonObject(raw: string): string | null {
   const text = raw.replace(/```(?:json)?/gi, '');
   const start = text.indexOf('{');
@@ -167,33 +331,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'raw_input is required' }, 400);
     }
 
-    const fastPath = buildFeedbackFastPath(rawInput);
-    const classified = fastPath ?? (await classifyWithClaude(rawInput));
+    const fastPath = buildFeedbackFastPath(rawInput) ?? buildIdeaFastPath(rawInput);
+    const parsed = fastPath ?? (await classifyWithClaude(rawInput, userId));
+    const items = extractItems(parsed, rawInput);
 
-    if (classified.domain === 'note' && !classified.expires_at) {
-      const hours =
-        (classified.metadata as { expires_in_hours?: number })?.expires_in_hours ?? 24;
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + hours);
-      classified.expires_at = expiresAt.toISOString();
-    }
-
-    if (
-      classified.domain === 'idea' &&
-      classified.metadata &&
-      typeof classified.metadata === 'object'
-    ) {
-      (classified.metadata as Record<string, unknown>).research_ready = false;
-    }
-
-    // Normalize life_area: only the five allowed values pass through; anything
-    // else (including a model echoing "null") becomes null.
-    const allowedLifeAreas = ['spiritual', 'creative', 'technical', 'family', 'finance'];
-    const lifeArea = classified.life_area;
-    classified.life_area =
-      typeof lifeArea === 'string' && allowedLifeAreas.includes(lifeArea) ? lifeArea : null;
-
-    return jsonResponse(classified);
+    return jsonResponse({ items });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Classification failed';
     return jsonResponse({ error: message }, 500);

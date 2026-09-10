@@ -1,4 +1,4 @@
-export type FeedbackSource = 'capture' | 'backfill' | 'chat';
+export type FeedbackSource = 'capture' | 'backfill' | 'chat' | 'journal';
 export type FeedbackStatus = 'new' | 'triaged' | 'done';
 
 export interface AppFeedback {

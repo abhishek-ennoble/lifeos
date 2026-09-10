@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifeOS",
     "slug": "lifeos",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lifeos",
@@ -43,6 +43,14 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#2563EB"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow LifeOS to access your microphone for voice capture.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
         }
       ]
     ],

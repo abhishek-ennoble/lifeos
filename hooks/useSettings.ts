@@ -10,6 +10,11 @@ import {
 } from 'react';
 
 import { readAppStorage, writeAppStorage } from '@/lib/app-storage';
+import {
+  DEFAULT_INBOX_FILTERS,
+  type InboxFilters,
+  type InboxSortMode,
+} from '@/lib/inbox-query';
 
 export type ThemePref = 'light' | 'dark' | 'system';
 
@@ -21,6 +26,14 @@ export interface Settings {
   /** Evening reflection notification time, "HH:MM" 24h. */
   eveningTime: string;
   notificationsEnabled: boolean;
+  /** Gentle Sunday nudge to leave app feedback (requires notifications on). */
+  feedbackWeeklyNudge: boolean;
+  /** ISO timestamp — feedback created after this counts as "new" for the badge. */
+  feedbackLastSeenAt: string | null;
+  inboxSort: InboxSortMode;
+  inboxFilters: InboxFilters;
+  /** End-of-day gentle reminder review nudge (uses eveningTime). */
+  reminderEodReviewEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +43,11 @@ export const DEFAULT_SETTINGS: Settings = {
   eveningEnabled: false,
   eveningTime: '21:00',
   notificationsEnabled: false,
+  feedbackWeeklyNudge: false,
+  feedbackLastSeenAt: null,
+  inboxSort: 'newest',
+  inboxFilters: DEFAULT_INBOX_FILTERS,
+  reminderEodReviewEnabled: false,
 };
 
 const STORAGE_KEY = 'lifeos.settings.v1';
@@ -47,8 +65,12 @@ function parseSettings(raw: string | null): Settings {
     return DEFAULT_SETTINGS;
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const parsed = JSON.parse(raw) as Partial<Settings> & { inboxFilters?: Partial<InboxFilters> };
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      inboxFilters: { ...DEFAULT_INBOX_FILTERS, ...parsed.inboxFilters },
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }

@@ -24,6 +24,15 @@ export interface TaskMetadata extends WithLifeArea {
   remind_at?: string;
   /** When true and due_at is set, schedule a notification at due_at. */
   wants_reminder?: boolean;
+  /** Parent entry when this task was spawned from a blocked reminder. */
+  linked_entry_id?: string;
+  /** Reminder accountability loop state (1.2f). */
+  reminder_state?: {
+    snooze_count?: number;
+    blocked_note?: string;
+    last_ack?: 'done' | 'snoozed' | 'blocked' | 'dismissed';
+    follow_up_scheduled?: boolean;
+  };
 }
 
 export interface LearningMetadata extends WithLifeArea {
@@ -37,6 +46,8 @@ export interface IdeaMetadata extends WithLifeArea {
   tag: 'personal' | 'business' | 'product';
   research_ready: boolean;
   voice_note_url?: string;
+  /** Named idea thread for grouping (e.g. "LifeOS agents", "MedTracker"). */
+  thread?: string;
 }
 
 export interface NoteMetadata extends WithLifeArea {
@@ -93,6 +104,10 @@ export interface ClassifiedEntry {
   expires_at: string | null;
   due_at: string | null;
   confidence: number;
+}
+
+export interface ClassifyResponse {
+  items: ClassifiedEntry[];
 }
 
 export interface Reminder {

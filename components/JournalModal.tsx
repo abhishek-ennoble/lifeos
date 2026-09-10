@@ -12,6 +12,7 @@ import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-co
 import Toast from 'react-native-toast-message';
 
 import { ALL_LIFE_AREAS, LIFE_AREA_LABELS, type LifeArea } from '@/constants/domains';
+import { VoiceInput } from '@/components/VoiceInput';
 import { useTheme } from '@/hooks/useTheme';
 import type { JournalInput } from '@/hooks/useEntries';
 
@@ -69,6 +70,16 @@ export function JournalModal({ visible, onClose, onSave }: JournalModalProps) {
             multiline
             autoFocus
           />
+
+          <View style={styles.voiceRow}>
+            <VoiceInput
+              variant="inline"
+              onTranscribed={async () => {}}
+              onDraft={(transcript) => {
+                setText((prev) => (prev.trim() ? `${prev.trim()}\n${transcript}` : transcript));
+              }}
+            />
+          </View>
 
           <View style={styles.chipRow}>
             {ALL_LIFE_AREAS.map((area) => {
@@ -148,6 +159,10 @@ const styles = StyleSheet.create({
     minHeight: 140,
     fontSize: 16,
     textAlignVertical: 'top',
+  },
+  voiceRow: {
+    marginTop: 12,
+    alignItems: 'center',
   },
   chipRow: {
     flexDirection: 'row',

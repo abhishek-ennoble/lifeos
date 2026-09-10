@@ -48,6 +48,13 @@ export function selectToday(entries: Entry[], limit = 3): Entry[] {
     .slice(0, limit);
 }
 
+/** Most recent captures across all domains — shown on Home so notes/journals are visible. */
+export function selectRecentCaptures(entries: Entry[], limit = 3): Entry[] {
+  return [...entries]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, limit);
+}
+
 /** Short, human meta line for an entry on the Today strip. */
 export function todayMeta(entry: Entry): string | null {
   if (entry.domain === DOMAINS.HEALTH) {

@@ -1,6 +1,28 @@
-# Next agent handoff — LifeOS (2026-06-30)
+# Next agent handoff — LifeOS (2026-07-27)
 
 **Read this first**, then [`ROADMAP.md`](./ROADMAP.md) for ordered backlog.
+
+## Latest session (2026-07-27) — Friend Beta (Phase 1.5)
+
+Introspected real usage (`scripts/introspect-usage.mjs` → `.discovery/`, gitignored),
+analyzed all 19 feedback items (`docs/FEEDBACK_ANALYSIS.md` — living triage doc),
+then shipped FB-1…FB-6:
+
+| Slice | What shipped |
+|-------|--------------|
+| FB-1 | Display name in `user_preferences` → greeting + briefing/chat prompts (fixes friend seeing "Abhishek"); Settings → Profile |
+| FB-2 | `OnboardingGate` first-run: name → notification opt-in |
+| FB-3 | Morning briefing nudge on by default after opt-in; rituals re-applied each launch |
+| FB-4 | Reminder telemetry write-back (`lib/reminder-sync.ts`); Android channel fix (channelId → trigger); silent `rituals` channel |
+| FB-5 | Feedback backlog triaged: 17 triaged / 2 done / 0 new |
+| FB-6 | Per-day AI cost; reminder quick-edit in entry detail |
+
+Verified: typecheck ✅ · vitest ✅ · service-role audit ✅ · `verify-friend-release` 18/18 ✅ ·
+briefing personalization confirmed live. **FB-7 build done**: 1.1.0 (versionCode 4) →
+`apk/27072026_170253/LifeOS.apk`. Remaining: owner device-test
+(`docs/DEVICE_TEST_CHECKLIST.md`), hand to 2–3 friends, measure week-1
+(success criteria in ROADMAP Phase 1.5).
+**After beta: the let-go/triage slice** (FEEDBACK_ANALYSIS §5).
 
 ## Product north star (do not over-engineer)
 
@@ -14,67 +36,34 @@ Design test: *Does this feel like a thoughtful friend, or a nagging app?* Remind
 
 | Area | Status |
 |------|--------|
+| Feedback + Ideas v0 | Ritual (badge, modal, weekly nudge), on-demand digest, idea threads |
+| Inbox sort & filter (1.2e) | Sort chips + filters sheet; persisted in settings |
+| Voice capture (1.2c) | Tap-to-record, 3 min cap; Home FAB, Brain dump, Journal draft, Reflect |
+| Reminder UX (1.2d) | Classifier remind→task; 🔔 badge; notif tap→inbox; Android channel |
+| Multi-item capture | One transcript → up to 5 entries via `{ items: [...] }` classify API |
 | Feedback Phase A | `app_feedback` table, `fb:` + classifier, Settings list, 3 backfilled items |
+| Reminder accountability (1.2f) | Done/Snooze notif actions; EOD review; blocked → follow-up task |
 | Reminders v2 | Relative/one-off local push via `lib/reminder-plan.ts` + `lib/notifications.ts` |
-| APK | Latest: `apk/29062026_182127/LifeOS.apk` |
-| Git | `main` has reminders v2 commit; push when user wants |
 
-**User-tested reminders (2026-06-30):** Push works (banner + sometimes sound). **Gaps found:**
-- Tap notif → does **not** open the entry (no listener wired; `entryId` in payload only)
-- Remind-only capture → classified as **`note`** titled "Reminder" (3 duplicates in inbox)
-- No **🔔 badge** on `EntryCard` for scheduled reminders
-- Android notification **channel** not configured (sound inconsistent)
-- Inbox: no **sort**; domain/life-area chips only
+**Next unchecked on roadmap:** Phase 2 — scheduled feedback digest (2.1) or pattern learning (2.2).
+
+| Foundation 1.1–1.4 | Security audit, journal scanner, memory tables, AI cost tracking |
+
+**Latest APK:** see `BUILD_STATUS.md`.
 
 ---
 
-## Agreed build order (updated)
+## Reminder accountability (1.2f) — shipped
 
-```
-Phase A — Reminder + Inbox polish (next)
-  1.2d Reminder UX polish
-  1.2e Inbox sort/filter
-  1.2f Reminder accountability loop (v3, design-first slice)
-
-Phase B — Capture breadth
-  1.2c Voice capture
-  1.2g Feedback: journal scanner + ritual
-
-Phase C — Foundation
-  1.1 Security audit · 1.3 Memory · 1.4 Cost tracking
-
-Phase D — Intelligence
-  2.1 Feedback digest · 2.2 Pattern learning · 2.3 Agents
-```
+- Notification category: **Done** / **Snooze** (horizon-aware limits in `lib/reminder-accountability.ts`)
+- Same-day +4h follow-up for pending items (`scheduleReminderFollowUp`)
+- **Settings → End-of-day reminder review** (off by default; uses `eveningTime`)
+- **`/reminder-review`** screen: Done / Tomorrow / Still pending + optional follow-up task
+- Fire log in local storage (`lib/reminder-fire-log.ts`); state in `metadata.reminder_state`
 
 ---
 
-## 1. Inbox sort & filter (1.2e) · S · Cursor
-
-**Goal:** Make inbox scannable as entry count grows.
-
-**Sort options (client-side on `InboxList` filtered list):**
-- **Newest first** (default, current behavior)
-- **Oldest first**
-- **Due soonest** (entries with `due_at`, nulls last)
-- **Priority** (high → medium → low; map user "urgent" → `high`)
-
-**Optional filters (beyond existing domain + life-area chips):**
-- **Has reminder** (`metadata.reminder_in_minutes` | `remind_at` | `wants_reminder` | health `times[]`)
-- **Status:** pending / done (default: pending only toggle off = show all)
-- **Has due date**
-
-**UI:** One "Sort" control + optional "Filters" sheet in [`app/(tabs)/inbox.tsx`](app/(tabs)/inbox.tsx). Persist last choice in `useSettings` (AsyncStorage).
-
-**Do not:** Full-text search or SQL-side sort yet — YAGNI.
-
----
-
-## 2. Reminder system — design principles (1.2d + 1.2f)
-
-Reminders are a **first-class pillar**, not just a timer. Read [`PRODUCT_EVOLUTION.md`](./PRODUCT_EVOLUTION.md) Theme 1 for feedback; this section is the reminder counterpart.
-
-### Philosophy
+## 1. Reminder system — reference (design principles)
 
 | Do | Don't |
 |----|--------|
@@ -166,26 +155,13 @@ Chat persistence as feedback source: **defer** until digest proves value.
 
 ---
 
-## 4. Voice (1.2c) — when & how
+## 4. Voice (1.2c) — shipped
 
-**When:** After **1.2d** reminder polish (or parallel if blocked on native). Before **1.3 memory**. Voice unlocks capture; doesn't fix reminder/inbox UX.
+**Status:** Implemented 2026-06-30. `VoiceInput` uses `expo-audio` → `lib/whisper.ts` → `captureText`.
 
-**How (one slice):**
+**Surfaces:** Home FAB, Brain dump modal (inline mic).
 
-```
-Hold mic (VoiceInput) → expo-audio record → lib/whisper.ts → transcribe-audio edge fn
-                    → captureText(transcript) → same classify/reminder path as typing
-```
-
-**Surfaces:** Home FAB, Brain dump modal (already has mic placeholder).
-
-**Privacy:** Audio in memory only; delete after transcript (existing guardrail).
-
-**Files:** [`components/VoiceInput.tsx`](components/VoiceInput.tsx), [`lib/whisper.ts`](lib/whisper.ts), add `expo-audio` per Expo 56 docs.
-
-**Do not:** On-device LLM, continuous listening, or separate voice-only storage.
-
-**Product fit:** Tier 2/3 voice-first; brain dump at 2am; same AI router as text.
+**Device test checklist:** mic permission, hold-to-record, Hindi/English mix, empty/silent audio, airplane mode after record, feedback via voice (`fb:` intent).
 
 ---
 
@@ -215,19 +191,29 @@ Hold mic (VoiceInput) → expo-audio record → lib/whisper.ts → transcribe-au
 
 ## 7. Next agent — start here
 
-**Recommended first slice:** **1.2d Reminder UX polish** (classifier + badge + tap + channel) — unblocks user testing, small diff, high trust.
+**Recommended first slice:** **1.2e Inbox sort & filter** — scannable inbox as entry count grows.
 
-Then **1.2e Inbox sort**, then **1.2f accountability** (needs design review of EOD toggle defaults).
+**Latest APK:** `apk/17072026_152817/LifeOS.apk` — **1.0.2** (versionCode 3) friend share:
+Phase 1 features + all-time AI usage + tap-card entry detail.
 
-**Do not start:** Agent platform, atomic UI customization, server FCM, feedback digest until reminder + inbox feel right.
-
-**Build APK:** `GRADLE_USER_HOME=C:\Users\hp\.gradle` + `cd android && .\gradlew.bat assembleRelease` → copy to `apk/<DDMMYYYY_HHmmss>/LifeOS.apk`.
-
-**Docs rule:** Update `BUILD_STATUS.md` + `ROADMAP.md` in same commit as code.
+**Friend share notes:** Friend creates their own email account. Needs internet for AI/voice.
+Grant mic + notifications. Known limits: chat is read-only; date extraction can be wrong;
+offline writes fail clearly; local reminders lost on reinstall.
 
 ---
 
-## 8. Long-term arc (context only — not next sprint)
+## 8. Phase 2 alignment questions (parked — discuss before building)
+
+User feedback to revisit when planning Phase 2 / product evolution — **not bugs, not in scope for Phase 1 close-out**:
+
+1. **Cleanup** — How do old entries, duplicates, and stale captures get cleaned up? (Anti-entropy is a start; dedup is not built.) Chat-saved feedback may have landed in `app_feedback` via classifier — verify in Settings → App feedback.
+2. **Grouping** — How should similar entries cluster (e.g. 10 notes on one topic)? Idea threads v0 is a first slice; broader semantic grouping is Phase 2+.
+3. **Multi-domain brain dump** — One journal/voice dump with tasks + ideas + health: classify already returns `{ items: [...] }` (up to 5). Longer dumps may need explicit split UX or a dedicated "parse this dump" flow.
+4. **New disciplines** — Adding a new life area (e.g. learning a skill): today = capture → classify → domain screen + reminders. Deeper "discipline" (streaks, spaced rep, coaching) lives in domain-specific roadmap items.
+
+---
+
+## 9. Long-term arc (context only — not next sprint)
 
 - **1.3 memory** → chat knows the person
 - **2.3 agents** → domain-specific helpers user asked for in feedback

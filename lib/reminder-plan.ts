@@ -102,3 +102,66 @@ export function onceSpecsFromPlan(plan: ReminderSpec[]): OnceReminderSpec[] {
 export function dailySpecsFromPlan(plan: ReminderSpec[]): DailyReminderSpec[] {
   return plan.filter((spec): spec is DailyReminderSpec => spec.kind === 'daily');
 }
+
+export function entryHasScheduledReminder(entry: Entry): boolean {
+  return planRemindersForEntry(entry).length > 0;
+}
+
+function formatTime12(hour: number, minute: number): string {
+  const h = hour % 12 || 12;
+  const ampm = hour < 12 ? 'am' : 'pm';
+  return minute === 0 ? `${h}${ampm}` : `${h}:${minute.toString().padStart(2, '0')}${ampm}`;
+}
+
+function formatRelativeMinutes(minutes: number): string {
+  if (minutes < 60) {
+    return `in ${Math.round(minutes)} min`;
+  }
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? 'in 1 hour' : `in ${hours} hours`;
+}
+
+/** Human-readable reminder label for EntryCard badges. */
+export function getEntryReminderLabel(entry: Entry): string | null {
+  if (!entryHasScheduledReminder(entry)) {
+    return null;
+  }
+
+  const metadata = (entry.metadata ?? {}) as Record<string, unknown>;
+  const reminderInMinutes = metadata.reminder_in_minutes;
+  if (typeof reminderInMinutes === 'number' && reminderInMinutes > 0 && entry.created_at) {
+    const fireAt = new Date(entry.created_at);
+    fireAt.setMinutes(fireAt.getMinutes() + Math.round(reminderInMinutes));
+    const diffMin = Math.round((fireAt.getTime() - Date.now()) / 60_000);
+    if (diffMin > 0 && diffMin <= 24 * 60) {
+      return formatRelativeMinutes(diffMin);
+    }
+  }
+
+  const remindAt = metadata.remind_at;
+  if (typeof remindAt === 'string') {
+    const parsed = new Date(remindAt);
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+      return parsed.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+  }
+
+  if (metadata.wants_reminder === true && entry.due_at) {
+    const parsed = new Date(entry.due_at);
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+      return parsed.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+  }
+
+  if (entry.domain === DOMAINS.HEALTH && Array.isArray(metadata.times) && metadata.times.length > 0) {
+    const first = metadata.times[0];
+    if (typeof first === 'string') {
+      const parsed = parseTime24(first);
+      if (parsed) {
+        return `daily ${formatTime12(parsed.hour, parsed.minute)}`;
+      }
+    }
+  }
+
+  return 'reminder set';
+}

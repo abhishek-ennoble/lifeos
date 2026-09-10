@@ -11,8 +11,10 @@ import {
 import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
 import Toast from 'react-native-toast-message';
 
+import { VoiceInput } from '@/components/VoiceInput';
 import { darkTheme } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { showCaptureSuccessToast } from '@/lib/capture-toast';
 import type { CaptureResult } from '@/types/capture';
 
 interface CaptureInputProps {
@@ -40,20 +42,7 @@ export function CaptureInput({
     try {
       const result = await onSubmit(trimmed);
       setText('');
-      if (
-        result &&
-        typeof result === 'object' &&
-        'kind' in result &&
-        (result as CaptureResult).kind === 'feedback'
-      ) {
-        Toast.show({
-          type: 'success',
-          text1: 'Thanks',
-          text2: 'Logged as app feedback',
-        });
-      } else {
-        Toast.show({ type: 'success', text1: 'Saved', text2: 'Captured and routed' });
-      }
+      showCaptureSuccessToast(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Capture failed';
       Toast.show({ type: 'error', text1: 'Error', text2: message });
@@ -117,7 +106,12 @@ export function CaptureInput({
         onPress={() => void handleSubmit()}
         disabled={loading}>
         {loading ? (
-          <ActivityIndicator color={colors.primaryContrast} />
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={colors.primaryContrast} size="small" />
+            <Text style={[styles.buttonText, { color: colors.primaryContrast }]}>
+              Classifying…
+            </Text>
+          </View>
         ) : (
           <Text style={[styles.buttonText, { color: colors.primaryContrast }]}>Capture</Text>
         )}
@@ -152,24 +146,7 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
       const result = await onSubmit(trimmed);
       setText('');
       onClose();
-      if (
-        result &&
-        typeof result === 'object' &&
-        'kind' in result &&
-        (result as CaptureResult).kind === 'feedback'
-      ) {
-        Toast.show({
-          type: 'success',
-          text1: 'Thanks',
-          text2: 'Logged as app feedback',
-        });
-      } else {
-        Toast.show({
-          type: 'success',
-          text1: 'Saved for morning',
-          text2: "I'll handle it when you wake up",
-        });
-      }
+      showCaptureSuccessToast(result, { brainDump: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save';
       Toast.show({ type: 'error', text1: 'Error', text2: message });
@@ -199,6 +176,21 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
             multiline
             autoFocus
           />
+          <View style={styles.voiceRow}>
+            <VoiceInput
+              variant="inline"
+              onTranscribed={async (transcript) => {
+                const result = await onSubmit(transcript);
+                onClose();
+                return result;
+              }}
+              successToast={{
+                text1: 'Saved for morning',
+                text2: "I'll handle it when you wake up",
+                brainDump: true,
+              }}
+            />
+          </View>
           <View style={styles.modalActions}>
             <Pressable style={styles.cancelButton} onPress={onClose}>
               <Text style={[styles.cancelText, { color: night.textSecondary }]}>Cancel</Text>
@@ -208,7 +200,12 @@ export function BrainDumpModal({ visible, onClose, onSubmit }: BrainDumpModalPro
               onPress={() => void handleSubmit()}
               disabled={loading}>
               {loading ? (
-                <ActivityIndicator color={night.primaryContrast} />
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color={night.primaryContrast} size="small" />
+                  <Text style={[styles.buttonText, { color: night.primaryContrast }]}>
+                    Classifying…
+                  </Text>
+                </View>
               ) : (
                 <Text style={[styles.buttonText, { color: night.primaryContrast }]}>
                   Save for morning
@@ -245,6 +242,11 @@ const styles = StyleSheet.create({
   buttonText: {
     fontWeight: '600',
     fontSize: 16,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   compactRow: {
     flexDirection: 'row',
@@ -293,6 +295,10 @@ const styles = StyleSheet.create({
     minHeight: 160,
     fontSize: 16,
     textAlignVertical: 'top',
+  },
+  voiceRow: {
+    marginTop: 12,
+    alignItems: 'center',
   },
   modalActions: {
     flexDirection: 'row',

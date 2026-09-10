@@ -1,5 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { handleCors, jsonResponse, getUserId } from '../_shared/cors.ts';
+import { createUserScopedClient } from '../_shared/service-client.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -8,14 +8,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+    let supabase: Awaited<ReturnType<typeof createUserScopedClient>>['supabase'];
+    let userId: string;
+    try {
+      const scoped = await createUserScopedClient(req);
+      supabase = scoped.supabase;
+      userId = scoped.userId;
+    } catch (response) {
+      return response as Response;
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

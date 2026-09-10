@@ -1,5 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { handleCors, jsonResponse, getUserId } from '../_shared/cors.ts';
+import { logAiUsage, usageFromAnthropicResponse } from '../_shared/ai-usage.ts';
+import {
+  appendMemoryToSystem,
+  fetchMemorySummary,
+  fetchProfileContext,
+} from '../_shared/memory.ts';
+import { createServiceClient, requireUserId } from '../_shared/service-client.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
+
+const CHAT_MODEL = 'claude-sonnet-4-6';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -12,9 +20,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Method not allowed' }, 405);
     }
 
-    const userId = await getUserId(req);
-    if (!userId) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+    let userId: string;
+    try {
+      userId = await requireUserId(req);
+    } catch (response) {
+      return response as Response;
     }
 
     const { message, history = [] } = await req.json();
@@ -27,9 +37,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabase = createServiceClient();
 
     const { data: entries } = await supabase
       .from('entries')
@@ -38,11 +46,21 @@ Deno.serve(async (req) => {
       .eq('status', 'pending')
       .limit(50);
 
+    const [memorySummary, profileContext] = await Promise.all([
+      fetchMemorySummary(supabase, userId),
+      fetchProfileContext(supabase, userId),
+    ]);
+
     const contextMessages = (history as Array<{ role: string; content: string }>).map(
       (h) => ({
         role: h.role as 'user' | 'assistant',
         content: h.content,
       }),
+    );
+
+    const system = appendMemoryToSystem(
+      `You are LifeOS, a personal assistant. Answer based on the user's pending entries. Be concise and actionable.\n\nPending entries:\n${JSON.stringify(entries ?? [])}`,
+      `${profileContext}${memorySummary}`,
     );
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -53,13 +71,10 @@ Deno.serve(async (req) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: CHAT_MODEL,
         max_tokens: 1024,
-        system: `You are LifeOS, a personal assistant. Answer based on the user's pending entries. Be concise and actionable.\n\nPending entries:\n${JSON.stringify(entries ?? [])}`,
-        messages: [
-          ...contextMessages,
-          { role: 'user', content: message },
-        ],
+        system,
+        messages: [...contextMessages, { role: 'user', content: message }],
       }),
     });
 
@@ -68,6 +83,15 @@ Deno.serve(async (req) => {
     }
 
     const result = await response.json();
+    const usage = usageFromAnthropicResponse(result as Record<string, unknown>);
+    await logAiUsage(supabase, {
+      userId,
+      functionName: 'ai-chat',
+      model: CHAT_MODEL,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
+
     const reply = result.content?.[0]?.text ?? 'I could not generate a response.';
 
     return jsonResponse({ reply });

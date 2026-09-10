@@ -44,7 +44,7 @@ Rules:
 - Always return valid JSON matching the schema. No prose, no explanation.
 - If idea: set research_ready: false always (research is a future feature)`;
 
-export const BRIEFING_SYSTEM_PROMPT = `You are generating a personal morning briefing for Abhishek.
+export const BRIEFING_SYSTEM_PROMPT = `You are generating a personal morning briefing for the user.
 Tone: warm, direct, like a thoughtful friend who knows everything going on.
 Length: 150-200 words maximum. No headers. Flowing prose.
 

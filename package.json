@@ -1,11 +1,12 @@
 {
   "name": "lifeos",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.108.2",
     "expo": "~56.0.12",
+    "expo-audio": "~56.0.12",
     "expo-constants": "~56.0.18",
     "expo-dev-client": "~56.0.0",
     "expo-file-system": "~56.0.8",
@@ -36,7 +37,8 @@
     "@types/react": "~19.2.2",
     "eas-cli": "^20.2.0",
     "supabase": "^2.106.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
   },
   "scripts": {
     "start": "expo start --dev-client --lan --port 8081",
@@ -47,10 +49,13 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "audit:service-role": "node scripts/audit-service-role-queries.mjs",
+    "smoke:release": "node scripts/smoke-release.mjs",
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref uhksxddifcptbzkqklcx",
     "supabase:db-push": "supabase db push",
-    "supabase:deploy-functions": "supabase functions deploy classify-entry && supabase functions deploy morning-briefing && supabase functions deploy anti-entropy && supabase functions deploy transcribe-audio && supabase functions deploy ai-chat",
+    "supabase:deploy-functions": "supabase functions deploy classify-entry && supabase functions deploy morning-briefing && supabase functions deploy anti-entropy && supabase functions deploy transcribe-audio && supabase functions deploy ai-chat && supabase functions deploy feedback-digest && supabase functions deploy scan-journal-feedback",
     "supabase:setup": "scripts\\supabase-setup.cmd"
   },
   "private": true
