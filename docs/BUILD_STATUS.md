@@ -6,6 +6,7 @@ Legend: ✅ works · ⚙️ deployed but unexercised by app · 🟡 partial · �
 | Feature | Status | Grounding |
 | --- | --- | --- |
 | Email/password auth (sign in / sign up) | ✅ | `components/AuthGate.tsx` (`signInWithPassword`, `signUp`) |
+| Forgot password / recovery (F27) | ✅ | Reset email + deep link + set-new-password screen; `lib/auth-recovery.ts` |
 | Text capture + AI classify → entry | ✅ | `captureText` → `classify-entry`; multi-item split returns `{ items: [...] }` |
 | App feedback capture (`fb:` + classifier) | ✅ | `classify-entry` feedback domain; routes to `app_feedback` table |
 | App feedback ritual + digest v0 | ✅ | Badge, Give feedback modal, weekly nudge, on-demand digest |
@@ -65,7 +66,11 @@ not the app. pg_cron scheduling is not enabled (jobs commented out).
 **Feedback backfill (2026-06-29):** 3 buried app-improvement items recovered from
 existing entries into `app_feedback` via `scripts/backfill-feedback.mjs`.
 
-**Latest APK:** `apk/10092026_165801/LifeOS.apk` — **1.2.0** (versionCode 5) Trust-the-machine build
+**Latest APK:** `apk/10092026_181431/LifeOS.apk` — **1.2.1** (versionCode 6) Follow-ups + forgot password:
+2.8a Follow-ups screen, provenance badges, WhatsApp batch in cloud; F27 forgot-password flow
+(deep link `lifeos://auth/callback` — allowlist in Supabase SETUP §4). Built 2026-09-10.
+
+**Previous APK:** `apk/10092026_165801/LifeOS.apk` — **1.2.0** (versionCode 5) Trust-the-machine build
 (T-1…T-5): D2 reminder-telemetry fix (foreground reconcile), classifier temporal grounding
 (client sends clock + timezone), briefing in user's day / short-first / no markdown, Home
 de-clutter (F21). Built locally via `gradlew assembleRelease` on 2026-09-10 (105 MB).

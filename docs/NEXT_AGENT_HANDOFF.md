@@ -15,10 +15,10 @@ Committed six weeks of uncommitted Friend Beta work (`418fbad`).
 **Do first:** (1) Supabase keep-alive cron, (2) re-run beta on 1.1.0 APK, (3) verify D2,
 (4) build let-go/triage slice. **Do not** migrate to AWS/DynamoDB yet.
 
-### Queued for next APK (1.7)
+### Latest APK slice (1.7, 2026-09-10)
 
-- **F27 — Forgot password:** `components/AuthGate.tsx` has sign-in/sign-up only. Add
-  forgot-password flow before the next release so logged-out users aren't stuck.
+- **1.2.1** bundles: follow-ups (2.8a) + forgot password (F27). Supabase Dashboard must
+  allowlist `lifeos://auth/callback` (SETUP §4) for reset links to open the app.
 
 ### Session 2026-09-10 (evening) — WhatsApp batch + follow-ups (2.8a)
 

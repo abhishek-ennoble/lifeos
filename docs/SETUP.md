@@ -33,7 +33,19 @@ supabase db push
 
 Or paste the SQL from `supabase/migrations/20260616000000_initial_schema.sql` into the Supabase SQL Editor.
 
-## 4. Deploy Edge Functions
+## 4. Auth redirect URLs (password reset)
+
+LifeOS uses the app scheme `lifeos://`. For forgot-password links to open the app on
+Android, add this redirect URL in Supabase Dashboard → **Authentication** → **URL
+Configuration** → **Redirect URLs**:
+
+```
+lifeos://auth/callback
+```
+
+Without it, reset emails may still arrive but the link will not return to the app.
+
+## 5. Deploy Edge Functions
 
 Set secrets (API keys stay server-side only):
 

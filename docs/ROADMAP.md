@@ -157,13 +157,12 @@ unchecked item, build it, check it off, update the relevant doc.
 
 Small fixes to bundle with the next APK (follow-ups UI + share-intent when ready):
 
-- [ ] **1.7a Forgot password (F27)** · S · **[Cursor]**
-  `AuthGate`: "Forgot password?" on sign-in → `supabase.auth.resetPasswordForEmail(email)`
-  → inline "Check your email" confirmation; no dead-end when logged out. Verify Supabase
-  Auth redirect URL / deep link for the reset link on Android.
+- [x] **1.7a Forgot password (F27)** · S · **[Cursor]** *(2026-09-10)*
+  `AuthGate`: Forgot password → reset email → deep link → set new password screen.
+  `lib/auth-recovery.ts`; allowlist `lifeos://auth/callback` in Supabase (SETUP §4).
 
-- [ ] **1.7b APK: follow-ups + auth fix** · S · **[Claude Code]**
-  Bump version; `gradlew assembleRelease`; device-test F.9/F.12/F.13 + sign-in recovery.
+- [x] **1.7b APK: follow-ups + auth fix** · S · **[Cursor]** *(2026-09-10)*
+  **1.2.1** (versionCode 6) at `apk/10092026_181431/LifeOS.apk`. Device-test F.9/F.12/F.13/F.14.
 
 ---
 
