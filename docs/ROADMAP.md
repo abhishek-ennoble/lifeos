@@ -192,6 +192,20 @@ unchecked item, build it, check it off, update the relevant doc.
 - [ ] **2.6 Feedback digest (scheduled) — Builder** · S · **[Claude Code]**
   Weekly `feedback-digest` via the external scheduler. *On-demand v0 shipped.*
 
+- [x] **2.8a Provenance + Follow-ups v0** · S · **[Cursor]** *(2026-09-10)*
+  `metadata.source / original_at / import_batch_id / follow_ups[]`; Follow-ups screen, Home
+  banner, badges; `updateEntryMetadata`. First WhatsApp batch (11 entries, 20 questions)
+  curated in. Design §9.
+
+- [ ] **2.8b Capture from anywhere** · M · **[Claude Code]** (native) + **[Cursor]** (flow)
+  Android share-intent (`expo-share-intent`) + WhatsApp chat-export (`.txt`) parser →
+  batch import with `original_at`; Interviewer (Haiku) generates follow-ups per item;
+  batch shown as one event. Design §9.4. *Auto-reading other apps: evaluated, declined.*
+
+- [ ] **2.9 Timeline** · S · **[Cursor]**
+  Inbox sort by `thoughtTime()`; batch grouping; "written vs. imported" everywhere.
+  Mirror consumes capture-pattern signals (design §9.2).
+
 - [ ] **2.7 Config-driven home screen** · M · **[Cursor]** (with **[Claude Code]** for the refactor)
   `layout_config` jsonb; home renders cards from config. Scope to the home card
   list only — do not boil the ocean.
@@ -211,11 +225,15 @@ unchecked item, build it, check it off, update the relevant doc.
   *Verify model IDs & tool-use shapes against the `claude-api` skill first.*
 
 - [ ] **3.2 IdeaBox v1** · L · **[Claude Code]** (agents) + **[Cursor]** (tab UI)
-  Separate *surface*, shared *substrate* (`INTELLIGENCE_DESIGN.md` §8). Ideas are
-  **promoted** from the inbox via `research_ready`; Idea Brief accumulates first.
-  Orchestrator-workers with a human gate before Prototype: Brief → Read → Scout →
-  Differentiate → Evaluate → **gate** → Prototype. Behind a **premium** flag.
-  First candidate: Swara Vigyan (captured 2026-09-10).
+  Separate *surface*, shared *substrate* (`INTELLIGENCE_DESIGN.md` §8, §9.5). Ideas are
+  **promoted** from the inbox via `research_ready`; Idea Brief accumulates from follow-up
+  answers first. **Dharma gate first** ("should this exist, should we?"), Interviewer lays
+  out paths with honest cost ranges (film: Bollywood / animation / AI pipeline), then
+  path-specific worker sets: app → Scout/Differentiate/Evaluate → Builder set (spec → build
+  → test → Play Store, gated); content → treatment/production plan; social platform →
+  stakeholder/verification/pilot. Results land as entries + tags + AI/owner action items.
+  Behind a **premium** flag. Candidates (2026-09-10): Swara Vigyan, Vigyan Bhairav,
+  Mahat film, Community finder, Surplus sharing, Living heritage, Common good delivery.
 
 - [ ] **3.2b Stale-item research agent (F20)** · M–L · **[Claude Code]**
   User-configurable: important item pending N days (e.g. 15) → Researcher

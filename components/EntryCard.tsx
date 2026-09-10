@@ -8,6 +8,7 @@ import { DOMAINS, LIFE_AREA_LABELS, isLifeArea } from '@/constants/domains';
 import { useTheme } from '@/hooks/useTheme';
 import { getEntryReminderLabel, entryHasScheduledReminder } from '@/lib/reminder-plan';
 import { getIdeaThread } from '@/lib/idea-threads';
+import { pendingFollowUps, sourceBadge } from '@/lib/follow-ups';
 import type { Entry } from '@/types/entry';
 
 interface EntryCardProps {
@@ -26,6 +27,8 @@ export function EntryCard({ entry, highlighted, onDone, onDelete, onLogSession }
   const reminderLabel = getEntryReminderLabel(entry);
   const hasReminder = entryHasScheduledReminder(entry);
   const ideaThread = getIdeaThread(entry);
+  const source = sourceBadge(entry);
+  const openQuestions = pendingFollowUps(entry).length;
 
   return (
     <>
@@ -86,6 +89,16 @@ export function EntryCard({ entry, highlighted, onDone, onDelete, onLogSession }
                 { backgroundColor: colors.bg, color: colors.domain[DOMAINS.IDEA] },
               ]}>
               {ideaThread}
+            </Text>
+          ) : null}
+          {source ? (
+            <Text style={[styles.badge, { backgroundColor: colors.bg, color: colors.textSecondary }]}>
+              via {source}
+            </Text>
+          ) : null}
+          {openQuestions > 0 ? (
+            <Text style={[styles.badge, { backgroundColor: colors.bg, color: colors.accentWarm }]}>
+              {openQuestions} {openQuestions === 1 ? 'question' : 'questions'}
             </Text>
           ) : null}
         </View>

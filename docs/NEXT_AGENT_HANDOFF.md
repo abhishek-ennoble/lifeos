@@ -15,6 +15,20 @@ Committed six weeks of uncommitted Friend Beta work (`418fbad`).
 **Do first:** (1) Supabase keep-alive cron, (2) re-run beta on 1.1.0 APK, (3) verify D2,
 (4) build let-go/triage slice. **Do not** migrate to AWS/DynamoDB yet.
 
+### Session 2026-09-10 (evening) — WhatsApp batch + follow-ups (2.8a)
+
+Owner dumped a WhatsApp self-chat batch and asked for: entries created; batch/provenance
+handling as a recurring scenario; a timeline; dump-pattern psychology; follow-ups the system
+devises; dharma-first IdeaBox. Done: **types** (`EntrySource`, `FollowUp`, provenance on
+metadata), `lib/follow-ups.ts` (+6 tests), `app/follow-ups.tsx`, Home banner, badges on
+`EntryCard` / `EntryDetailModal` ("via WhatsApp", "N questions", Written/Imported),
+`useEntries.updateEntryMetadata`. **Data:** 11 curated entries for the owner
+(`import_batch_id = wa-2026-09-10-01`; 4 tasks finance/family, 7 ideas each with a thread
++ `ideabox_candidate: true`; 20 follow-up questions). `original_at` unknown (pasted text,
+no timestamps) — a WhatsApp `.txt` export would backfill it. **Design:** §9 in
+`INTELLIGENCE_DESIGN.md`. **Next:** 2.8b share-intent + export importer (Claude Code for
+the native plugin), 2.9 timeline, then T-6 / 2.0 as before. New APK needed for 2.8a.
+
 ### Session 2026-09-10 (late afternoon) — "re-order and work on them" → T-1…T-5 shipped
 
 Owner approved working the backlog; defaults taken for design §7. Shipped (all typecheck ✅,

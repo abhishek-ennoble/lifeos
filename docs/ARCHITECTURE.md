@@ -22,7 +22,7 @@ discriminated by `domain`. See `migrations/20260616000000_initial_schema.sql`.
 | `domain` | enum: `health \| task \| learning \| idea \| note \| journal` |
 | `priority` | `high \| medium \| low` |
 | `status` | `pending \| done \| archived \| snoozed` (delete = set `archived`) |
-| `metadata` | jsonb: holds `life_area`, `times[]`, `interval_days`, journal fields, etc. |
+| `metadata` | jsonb: `life_area`, `times[]`, `interval_days`, journal fields; **provenance** `source`, `original_at`, `import_batch_id`; `start_at`; `follow_ups[]` (`lib/follow-ups.ts`) |
 | `due_at` / `expires_at` | timestamps (classifier-set; often unreliable) |
 | `is_recurring`, `recurrence_rule` | recurrence as cron string |
 
@@ -63,6 +63,8 @@ This is the seed of the external scheduler described in `INTELLIGENCE_DESIGN.md`
 
 ## App structure (Expo Router)
 - `app/(tabs)/` — `index` (Home/capture), `inbox`, `insights`.
+- `app/follow-ups.tsx` — questions the system parked on entries; answers saved to
+  `metadata.follow_ups` via `useEntries.updateEntryMetadata`.
 - `app/` — `chat`, `reflect`, `settings`, `anti-entropy` (modal/stack routes).
 - `hooks/` — data layer (`useEntries`, `useBriefing`, `useChat`/`useAntiEntropy`,
   `useReminders`, `useSettings`, `useTheme`).

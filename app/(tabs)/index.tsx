@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { useProfile } from '@/hooks/useProfile';
 import { showCaptureSuccessToast } from '@/lib/capture-toast';
+import { countPendingFollowUps } from '@/lib/follow-ups';
 import {
   selectRecentCaptures,
   selectToday,
@@ -47,6 +48,7 @@ export default function HomeScreen() {
   const [notificationsGranted, setNotificationsGranted] = useState(true);
 
   const today = useMemo(() => selectToday(entries, 3), [entries]);
+  const followUpCount = useMemo(() => countPendingFollowUps(entries), [entries]);
   const recentCaptures = useMemo(() => {
     const shownOnToday = new Set(today.map((entry) => entry.id));
     return selectRecentCaptures(entries, 3, { exclude: shownOnToday, since: startOfLocalDay() });
@@ -155,6 +157,17 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </View>
+        ) : null}
+
+        {followUpCount > 0 ? (
+          <Link href={'/follow-ups' as Href} asChild>
+            <Pressable style={[styles.staleBanner, { borderColor: colors.border }]}>
+              <Text style={[styles.staleText, { color: colors.textSecondary }]}>
+                {followUpCount} {followUpCount === 1 ? 'question' : 'questions'} waiting to sharpen
+                what you captured — answer when you have a minute
+              </Text>
+            </Pressable>
+          </Link>
         ) : null}
 
         {staleCount > 0 ? (

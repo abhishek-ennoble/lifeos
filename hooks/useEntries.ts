@@ -32,6 +32,8 @@ interface UseEntriesResult {
   captureText: (rawInput: string) => Promise<CaptureResult | null>;
   captureJournal: (input: JournalInput) => Promise<Entry | null>;
   updateEntryStatus: (id: string, status: Entry['status']) => Promise<void>;
+  /** Replace an entry's metadata (used for follow-up answers, tags). */
+  updateEntryMetadata: (id: string, metadata: EntryMetadata) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   logLearningSession: (id: string, quality: 0 | 1 | 2 | 3 | 4 | 5) => Promise<void>;
 }
@@ -330,6 +332,32 @@ export function useEntries(domain?: Domain): UseEntriesResult {
     [refresh],
   );
 
+  const updateEntryMetadata = useCallback(
+    async (id: string, metadata: EntryMetadata) => {
+      try {
+        const { data, error: updateError } = await supabase
+          .from('entries')
+          .update({ metadata: metadata as Json, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select('*')
+          .single();
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        const updated = mapRow(data as Record<string, unknown>);
+        await upsertCachedEntry(updated);
+        setEntries((prev) => prev.map((entry) => (entry.id === id ? updated : entry)));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to update entry';
+        setError(message);
+        throw new Error(message);
+      }
+    },
+    [],
+  );
+
   const deleteEntry = useCallback(
     async (id: string) => {
       try {
@@ -402,6 +430,7 @@ export function useEntries(domain?: Domain): UseEntriesResult {
     captureText,
     captureJournal,
     updateEntryStatus,
+    updateEntryMetadata,
     deleteEntry,
     logLearningSession,
   };

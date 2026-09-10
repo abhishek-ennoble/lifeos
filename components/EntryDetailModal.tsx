@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { DomainIcon } from '@/components/DomainIcon';
 import { DOMAIN_LABELS, LIFE_AREA_LABELS, isLifeArea } from '@/constants/domains';
 import { useTheme } from '@/hooks/useTheme';
+import { getFollowUps, sourceBadge, thoughtTime } from '@/lib/follow-ups';
 import { getIdeaThread } from '@/lib/idea-threads';
 import { snoozeReminderEntry, snoozeReminderUntilTomorrow } from '@/lib/reminder-actions';
 import { entryHasScheduledReminder, getEntryReminderLabel } from '@/lib/reminder-plan';
@@ -50,6 +51,10 @@ export function EntryDetailModal({
   const reminderLabel = getEntryReminderLabel(entry);
   const hasReminder = entryHasScheduledReminder(entry);
   const ideaThread = getIdeaThread(entry);
+  const source = sourceBadge(entry);
+  const followUps = getFollowUps(entry);
+  const originalAt = thoughtTime(entry);
+  const written = originalAt !== entry.created_at ? formatWhen(originalAt) : null;
   const created = formatWhen(entry.created_at);
   const due = formatWhen(entry.due_at);
   const raw = entry.raw_input?.trim() ?? '';
@@ -143,11 +148,37 @@ export function EntryDetailModal({
               ) : null}
               {ideaThread ? <MetaChip label={ideaThread} colors={colors} accent /> : null}
               {entry.is_recurring ? <MetaChip label="recurring" colors={colors} /> : null}
+              {source ? <MetaChip label={`via ${source}`} colors={colors} /> : null}
             </View>
 
+            {followUps.length > 0 ? (
+              <View style={styles.textBlock}>
+                <Text style={[styles.textLabel, { color: colors.textSecondary }]}>Follow-ups</Text>
+                {followUps.map((item) => (
+                  <View key={item.id} style={styles.followUp}>
+                    <Text style={[styles.followUpQuestion, { color: colors.textPrimary }]}>
+                      {item.question}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.followUpAnswer,
+                        { color: item.answer ? colors.textPrimary : colors.textSecondary },
+                      ]}>
+                      {item.answer ? `— ${item.answer}` : 'Unanswered · answer from Home → Follow-ups'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             <View style={styles.facts}>
+              {written ? (
+                <Text style={[styles.fact, { color: colors.textSecondary }]}>Written {written}</Text>
+              ) : null}
               {created ? (
-                <Text style={[styles.fact, { color: colors.textSecondary }]}>Captured {created}</Text>
+                <Text style={[styles.fact, { color: colors.textSecondary }]}>
+                  {written ? 'Imported' : 'Captured'} {created}
+                </Text>
               ) : null}
               {due ? (
                 <Text style={[styles.fact, { color: colors.textSecondary }]}>Due {due}</Text>
@@ -311,6 +342,18 @@ const styles = StyleSheet.create({
   emptyBody: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  followUp: {
+    gap: 2,
+    marginTop: 6,
+  },
+  followUpQuestion: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  followUpAnswer: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   metaRow: {
     flexDirection: 'row',

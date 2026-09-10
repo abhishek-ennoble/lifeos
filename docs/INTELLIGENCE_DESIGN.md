@@ -525,3 +525,107 @@ table linked to the entry; every stage resumable; cost shown per idea.
 | Evaluate | Evaluator | Value Â· feasibility Â· effort Â· owner-fit Â· "should this exist" | Sonnet |
 | **Gate** | **owner** | Proceed to prototype? â€” non-negotiable human gate before the expensive stage | â€” |
 | Prototype | Prototyper | Spec + clickable prototype (Claude Codeâ€“class job) | Sonnet, premium, hard cap |
+
+---
+
+## 9. Batches, provenance, timeline, follow-ups (owner scenario 2026-09-10)
+
+**Scenario.** While the backend was paused the owner kept capturing anyway — texting himself
+on WhatsApp — and then dumped the batch here. This *will* recur: thoughts arrive in bursts,
+from whatever surface was closest. The system must treat that as normal, not as an
+exception. Three consequences: provenance is part of the record, time has two axes, and the
+follow-up burden moves from the human to the system.
+
+### 9.1 Provenance and the two clocks (shipped v0)
+
+Every entry's metadata may carry:
+
+| Field | Meaning |
+|---|---|
+| `source` | `app_text` · `app_voice` · `brain_dump` · `whatsapp_import` · `share_intent` · `agent` |
+| `original_at` | when the thought was *written* (imports); `created_at` stays *when it entered LifeOS* |
+| `import_batch_id` | groups one dump; a batch is itself an event on the timeline |
+| `follow_ups[]` | questions parked on the entry — see 9.3 |
+
+**Timeline** = entries ordered by `thoughtTime()` (`original_at ?? created_at`), with source
+and batch shown. Two views matter: *what was on my mind when* (by `original_at`) and *when
+did it reach the system* (by `created_at`). The gap between them is itself a signal (9.2).
+Inbox sort `oldest/newest` should switch to `thoughtTime()` once imports carry `original_at`
+(WhatsApp export `.txt` parsing gives it for free; the pasted dump did not).
+
+### 9.2 Dump psychology — what the Mirror should read from capture *patterns*
+
+The owner asked to think about this psychologically. Capture metadata (not content) already
+says a lot; the Mirror (§3.4) should compute it nightly and report it in witness voice:
+
+| Signal | Reading | Response (never a nag) |
+|---|---|---|
+| **Bursts** (N captures within minutes) | offloading — the mind was full; often tasks + one big idea together | acknowledge the burst as one event; propose one project for it (Librarian) |
+| **Hour of day** — late night (23–02) | rumination or generative time; the original 2 a.m. use case | 2 a.m. dumps are never triaged at 2 a.m.; the morning briefing carries them |
+| **Source drift** — captures moving to WhatsApp/other | LifeOS was not reachable or not trusted at that moment | friction signal for the *product*, not the person; feeds `app_feedback` |
+| **Gap between `original_at` and `created_at`** | how long a thought lived outside before it was safe here | shorter over time = trust rising |
+| **Ratio ideas : tasks per batch** | which mode the person is in (building vs. maintaining) | Steward paces asks accordingly |
+| **Recurring subjects across batches** (Mummy's accounts, yoga texts, sharing/dharma apps) | the real areas of life — the person model's areas should be *learned from this* | seed/extend `user_memory` areas |
+
+Principle: this is **witness, not judge**. The Mirror describes ("you tend to capture ideas
+late at night and errands in the morning"); it never prescribes.
+
+### 9.3 Follow-ups — the system carries the "come back to this" (shipped v0)
+
+Fragments cannot be researched. Instead of forcing structure at capture (breaks flow), the
+system parks 1–3 *specific* questions per entry and the owner answers when he wants:
+Home banner ? `Follow-ups` screen ? one question at a time ? answer stored on the entry.
+Answers accumulate into the Idea Brief (§8), so by the time an idea is promoted to IdeaBox
+the agents start from a real brief. Rules: system questions are concrete and answerable in
+one line; max 3 per entry; unanswered questions never escalate to notifications; the owner
+can add his own questions to an entry (`asked_by: 'user'`). Later: the Interviewer agent
+(§8) generates these on import instead of a human curating them.
+
+### 9.4 Reading other apps automatically — feasibility note (owner asked; keep, don't build)
+
+| Path | Feasibility | Cost / risk | Verdict |
+|---|---|---|---|
+| **Share-to-LifeOS** (Android share sheet; `expo-share-intent`, config plugin) | high; works from WhatsApp, browser, notes, anything | one native module; no special permissions | **build next** — the honest "capture from anywhere" |
+| **WhatsApp chat export ? import** (`.txt` with timestamps) | high; user-initiated, carries `original_at` | parser + batch importer; zero platform risk | **build with share-intent** — one flow: export ? share ? parsed batch |
+| Notification Listener (read incoming notifications) | medium; misses self-chats, sees *everyone's* messages | heavy privacy surface; Play Store sensitive-permission review | no |
+| Accessibility service scraping | low-medium | Play policy violation risk; brittle; reads everything on screen | no |
+| WhatsApp Business/Cloud API | n/a for a personal self-chat | — | no |
+| SMS read (bank alerts ? spends, for "Surplus sharing") | medium | `READ_SMS` is restricted on Play; alternatives: Account Aggregator (India) with consent | future, consent-first |
+
+Conclusion: *permissioned pull* is mostly not available for personal chats; *frictionless
+push* (share sheet + export import) gets 90 % of the value with none of the trust cost.
+
+### 9.5 IdeaBox — interaction-first, dharma-first (extends §8)
+
+The owner's ask sharpens §8 in four ways:
+
+1. **Dharma gate first, not last.** Before any market work: *should this exist at all, and
+   should we be the ones?* One Sonnet pass + owner answer. Many ideas should stop here,
+   cheaply. Evaluation dimensions (owner's list): potential · market fit · competition ·
+   revenue potential · uniqueness · suggestions · user experience · **overall dharma**.
+2. **The Interviewer is the main agent, not a pre-step.** Research on open-ended ideas (a
+   film on a saint; heritage recording) is "tricky" precisely because the *direction* is
+   undecided. The system's job is to ask the useful questions and lay out the paths with
+   honest ranges — e.g. for a film: Bollywood production vs. animation studio vs. an
+   AI-generated pipeline the owner runs himself, each with rough cost/time/skills — then
+   let the owner choose. Maximum user input, minimum assumption. Follow-ups (9.3) are the
+   asynchronous form of this; the Interviewer is the synchronous one.
+3. **Path-specific worker sets, booted on choice.** Same idea, different pipelines:
+   *app* ? Scout/Differentiate/Evaluate ? **Builder set** (spec ? build ? test ? Play Store
+   release, each behind a gate); *film/content* ? references ? treatment ? format/cost
+   paths ? production plan; *social/dharmic platform* (Surplus sharing, Living heritage) ?
+   stakeholder + verification design + pilot plan before any code. New worker sets are
+   configuration (`agents` rows), so the owner can ask for a specialist for "so-and-so use
+   case" and get one without a release.
+4. **Everything lands back as entries + tags + actions**: pipeline stage, tags
+   (`ideabox: gated / scouting / go / no-go`), and action items assigned to AI or to the
+   owner, visible in Inbox like anything else. No separate inbox to check.
+
+### 9.6 What shipped today vs. what waits
+
+- Shipped: provenance fields, `follow_ups`, Follow-ups screen + Home banner, source/question
+  badges, `Written / Imported` on detail, 11 curated WhatsApp entries (batch
+  `wa-2026-09-10-01`) with 20 questions.
+- Next (ROADMAP 2.8–2.10): share-intent + WhatsApp export importer with `original_at`;
+  Interviewer generates follow-ups on import; timeline sort by `thoughtTime()`; Mirror reads
+  9.2 signals; IdeaBox gates per 9.5.

@@ -97,6 +97,7 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="feedback" options={{ title: 'App Feedback' }} />
         <Stack.Screen name="reminder-review" options={{ title: 'Reminder review' }} />
+        <Stack.Screen name="follow-ups" options={{ title: 'Follow-ups' }} />
         <Stack.Screen
           name="reflect"
           options={{ title: 'Evening reflection', presentation: 'modal' }}

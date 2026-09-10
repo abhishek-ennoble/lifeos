@@ -3,9 +3,40 @@ import type { Domain, LifeArea } from '@/constants/domains';
 export type EntryStatus = 'pending' | 'done' | 'archived' | 'snoozed';
 export type EntryPriority = 'high' | 'medium' | 'low';
 
-/** Cross-cutting life-area tag available on any entry's metadata. */
+/** Where a capture physically came from. Provenance is part of the record. */
+export type EntrySource =
+  | 'app_text'
+  | 'app_voice'
+  | 'brain_dump'
+  | 'whatsapp_import'
+  | 'share_intent'
+  | 'agent';
+
+/**
+ * A question the system (or the user) parked on an entry to sharpen it
+ * later. Answering is the user's move, on their time — the Follow-ups queue
+ * takes the "remember to come back to this" load off them.
+ */
+export interface FollowUp {
+  id: string;
+  question: string;
+  asked_by: 'system' | 'user';
+  asked_at: string;
+  answer?: string;
+  answered_at?: string;
+}
+
+/** Cross-cutting fields available on any entry's metadata. */
 interface WithLifeArea {
   life_area?: LifeArea;
+  source?: EntrySource;
+  /** When the thought was originally written, if it predates capture (imports). */
+  original_at?: string;
+  /** Groups entries that arrived in the same batch import. */
+  import_batch_id?: string;
+  /** Practice/period begins here — never "overdue" (classifier `start_at`). */
+  start_at?: string;
+  follow_ups?: FollowUp[];
 }
 
 export interface HealthMetadata extends WithLifeArea {
