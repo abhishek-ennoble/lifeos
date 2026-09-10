@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 
 import { useSettings } from '@/hooks/useSettings';
+import { reconcileFiredReminders } from '@/lib/reminder-sync';
 import {
   applyRitualSchedule,
   ensureReminderNotificationCategories,
@@ -53,6 +55,18 @@ export function NotificationRouter() {
       reminderEodReviewEnabled: settings.reminderEodReviewEnabled,
     });
   }, [settings, settingsLoading]);
+
+  // D2: reminders delivered while backgrounded never reach the "received"
+  // listener, so reconcile telemetry on launch and each return to foreground.
+  useEffect(() => {
+    void reconcileFiredReminders();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void reconcileFiredReminders();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     void ensureReminderNotificationChannel();

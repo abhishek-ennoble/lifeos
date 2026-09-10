@@ -48,11 +48,36 @@ export function selectToday(entries: Entry[], limit = 3): Entry[] {
     .slice(0, limit);
 }
 
-/** Most recent captures across all domains — shown on Home so notes/journals are visible. */
-export function selectRecentCaptures(entries: Entry[], limit = 3): Entry[] {
+export interface RecentCaptureOptions {
+  /** Entry ids already shown elsewhere (e.g. the Today strip) — skipped. */
+  exclude?: ReadonlySet<string>;
+  /** Only captures created at/after this instant (default: no cutoff). */
+  since?: Date;
+}
+
+/**
+ * Most recent captures across all domains — shown on Home so notes/journals
+ * are visible. F21: dedupe against Today and keep it to genuinely recent
+ * items so a quiet week doesn't show week-old "just captured" rows.
+ */
+export function selectRecentCaptures(
+  entries: Entry[],
+  limit = 3,
+  options: RecentCaptureOptions = {},
+): Entry[] {
+  const sinceMs = options.since?.getTime() ?? Number.NEGATIVE_INFINITY;
   return [...entries]
+    .filter((entry) => !options.exclude?.has(entry.id))
+    .filter((entry) => new Date(entry.created_at).getTime() >= sinceMs)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, limit);
+}
+
+/** Local midnight for `now` — the start of the user's calendar day on-device. */
+export function startOfLocalDay(now: Date = new Date()): Date {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
 /** Short, human meta line for an entry on the Today strip. */

@@ -77,8 +77,7 @@ unchecked item, build it, check it off, update the relevant doc.
 - [x] **1.4 Token-usage / cost tracking** · S–M · **[Claude Code]**
   `ai_usage` table; all Claude/Whisper edge fns log tokens; Settings → AI usage this month.
 
-- [ ] **1.3b Pattern learning job** · M · **[Claude Code]**
-  Scheduled `learn-patterns` → populate `user_memory`. *Tables ready; job → 2.2.*
+- [ ] ~~**1.3b Pattern learning job**~~ → superseded by **2.0 person model** + **2.4 Mirror** (2026-09-10).
 
 ---
 
@@ -114,26 +113,86 @@ unchecked item, build it, check it off, update the relevant doc.
   `apk/27072026_170253/LifeOS.apk`. Remaining: share APK with 2–3 friends →
   measure week-1 with `scripts/introspect-usage.mjs` against the success criteria.
 
-**Next after beta ships:** the **let-go/triage slice** (F7, F12–F14, F17 stage 1)
-— weekly stale review: Keep / Done / Let go, reward on cleared inbox.
+---
+
+## Phase 1.6 — Trust the machine (re-ordered 2026-09-10)
+
+> Owner re-ordered the backlog after a close re-read of the raw record
+> (`INTELLIGENCE_DESIGN.md` §1–2). Rule: **nothing time-based or intelligent is
+> trustworthy until the clock, the scheduler, and the telemetry are.** These are
+> small and precede every specialist.
+
+- [x] **T-1 Reminder telemetry (D2) root-caused + fixed** · S · **[Cursor]** *(2026-09-10)*
+  Background deliveries never hit the foreground listener → `sent_at` never written →
+  ack no-op'd. `reconcileFiredReminders()` on launch/foreground + ack fallback
+  (`lib/reminder-sync.ts`). *Device-verify: `DEVICE_TEST_CHECKLIST` F.9.*
+- [x] **T-2 Router temporal grounding** · S · **[Cursor]** *(2026-09-10, deployed)*
+  Client sends `client_now` + IANA `timezone`; `_shared/temporal.ts` injects the
+  current date/weekday/zone into the classifier prompt; `metadata.start_at` (a
+  practice begins) vs `due_at` (deadline); stale-timestamp guard. Fixes the
+  "wake up tomorrow" → 2025 bug. Live-verified.
+- [x] **T-3 Briefing in the user's day** · S · **[Cursor]** *(2026-09-10, deployed)*
+  `date` and "today's reminders" computed in the user's zone; `start_at` items are
+  "starting", never overdue; short-first shape (≤45-word first paragraph); markdown
+  stripped server-side (stored briefings had literal `**`).
+- [x] **T-4 Keep-alive + external scheduler seed** · S · **[Cursor]** *(2026-09-10)*
+  `.github/workflows/keep-alive.yml` — daily PostgREST + functions-gateway ping.
+  **Owner action:** add repo secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY`, push.
+  Grows into the Coordinator's ritual scheduler (design §3.3, §7.1).
+- [x] **T-5 Home de-clutter (F21)** · S · **[Cursor]** *(2026-09-10)*
+  Greeting in header row; capture first; briefing collapsed to first paragraph with
+  More/Less; "Just captured" = today only, deduped against Today; Notifications action
+  hidden once granted.
+- [ ] **T-6 Eval harness v0** · S · **[Claude Code]**
+  Golden set from the owner's record (redacted fixture) → `scripts/eval-router.mjs`;
+  gates prompt changes. Would have caught T-2 on day one; also catches model variance
+  seen during T-2 verification.
+- [ ] **T-7 Server-side reminder firing** · M · **[Claude Code]**
+  `reminders` rows become the source of truth; scheduler fires Expo push so
+  reminders survive reinstall. Local scheduling stays as offline fallback.
 
 ---
 
-## Phase 2 — Learning & agents
+## Phase 2 — Specialists (organize → release → reflect), then the true agent
 
-- [ ] **2.1 Feedback digest (scheduled)** · M · **[Claude Code]**
-  pg_cron weekly `feedback-digest`; auto-push or in-app card. *On-demand v0 shipped.*
+> Per-job specialists, not per-domain personas (`INTELLIGENCE_DESIGN.md` §3.5).
+> Coordinator is deterministic. Every specialist write beyond exact-duplicate
+> linking goes through `proposals` (one tap to accept).
 
-- [ ] **2.2 Pattern learning** · M · **[Claude Code]**
-  Scheduled `learn-patterns` fn summarizes recent entries/journals into
-  `user_memory`. Feeds personalization + suggestions.
+- [ ] **2.0 Person model + user codes** · M · **[Claude Code]**
+  Widen `user_memory` (area/project/person/rhythm/code/value + stable `key`, `source`);
+  **seed from the record** (Muladhara = explicit project; areas incl. household, pet,
+  work, community, society); Router recognizes user codes (BD1) — no more expiring
+  notes for tagged captures. *Replaces 1.3b.*
 
-- [ ] **2.3 Agent platform core** · L · **[Claude Code]**
-  `agents` + `agent_runs` tables, one `run-agent` edge fn (Claude tool-use loop),
-  port `ai-chat` to a built-in agent. Start with read-only `query_entries` tool.
-  *Verify model IDs & tool-use shapes against the `claude-api` skill first.*
+- [ ] **2.1 Projects + links** · M · **[Claude Code]**
+  `projects`, `entry_links` (`duplicate_of` / `part_of` / `related` / `follow_up_of` /
+  `decomposed_from`), `entries.merged_into`; Router returns one thought with `parts[]`
+  instead of N fragments; idea threads v0 migrates into projects.
 
-- [ ] **2.4 Config-driven home screen** · M · **[Cursor]** (with **[Claude Code]** for the refactor)
+- [ ] **2.2 Librarian v0 (organize)** · M · **[Claude Code]** + **[Cursor]**
+  pgvector on `entries`; exact + near-duplicate detection on capture and nightly;
+  auto-link exact dupes (<24 h), `proposals` for the rest; inbox "×N" card.
+  Addresses the 30 % fragment/duplicate rate (F7, F9).
+
+- [ ] **2.3 Steward v0 (release)** · M · **[Cursor]** + **[Claude Code]**
+  Weekly review pack: Keep / Done / Schedule / Let go / Ask for help; Eisenhower +
+  staleness + collector's-fallacy selection (deterministic); one Haiku line per item in
+  witness voice; calm cleared-state screen. Reshapes `anti-entropy`.
+  (F7, F12a/d, F13a/d, F14b/f, F17 stage 1, D5.)
+
+- [ ] **2.4 Mirror (reflect)** · M · **[Claude Code]**
+  Nightly pattern extraction → person model; weekly/monthly reflection digest (F10b);
+  monthly asks one question back. *Replaces 2.2 pattern learning.*
+
+- [ ] **2.5 Coordinator policies + transparency** · M · **[Claude Code]**
+  Budget (tokens/day), quiet (≤3 proactive/day, night silence), per-specialist toggles
+  (F14d), `agent_runs`, Settings → "What the assistant did".
+
+- [ ] **2.6 Feedback digest (scheduled) — Builder** · S · **[Claude Code]**
+  Weekly `feedback-digest` via the external scheduler. *On-demand v0 shipped.*
+
+- [ ] **2.7 Config-driven home screen** · M · **[Cursor]** (with **[Claude Code]** for the refactor)
   `layout_config` jsonb; home renders cards from config. Scope to the home card
   list only — do not boil the ocean.
 
@@ -145,19 +204,28 @@ unchecked item, build it, check it off, update the relevant doc.
   `product_suggestions` table + scheduled `suggestion-engine` fn. Rule-assisted +
   LLM rationale. Surfaces e.g. "you're a thinker → try IdeaBox" as a dismissible card.
 
+- [ ] **3.0 Agent platform core + Researcher** · L · **[Claude Code]**
+  `agents` + `agent_runs` + `run-agent` (Claude tool-use loop; read-only
+  `query_entries`, `web_search`, `propose_entries`). The **only true agent**; premium,
+  off by default, on request or owner-set threshold. Port `ai-chat` to a built-in agent.
+  *Verify model IDs & tool-use shapes against the `claude-api` skill first.*
+
 - [ ] **3.2 IdeaBox v1** · L · **[Claude Code]** (agents) + **[Cursor]** (tab UI)
-  Research agents over existing `domain='idea'` entries (web_search → summarize →
-  estimate value). Behind a **premium** flag. Built on the agent platform (2.3).
+  Separate *surface*, shared *substrate* (`INTELLIGENCE_DESIGN.md` §8). Ideas are
+  **promoted** from the inbox via `research_ready`; Idea Brief accumulates first.
+  Orchestrator-workers with a human gate before Prototype: Brief → Read → Scout →
+  Differentiate → Evaluate → **gate** → Prototype. Behind a **premium** flag.
+  First candidate: Swara Vigyan (captured 2026-09-10).
 
 - [ ] **3.2b Stale-item research agent (F20)** · M–L · **[Claude Code]**
-  User-configurable: important item pending N days (e.g. 15) → research agent
+  User-configurable: important item pending N days (e.g. 15) → Researcher
   decomposes it and suggests concrete next steps (e.g. "ultrasound pending →
   here are nearby well-rated options"), then offers related follow-ups.
-  Token-heavy → **premium tier**. Depends on 2.3; stage 1 (non-AI stale surfacing)
-  ships in the let-go slice.
+  Token-heavy → **premium tier**. Depends on 3.0; stage 1 (non-AI stale surfacing)
+  ships in Steward (2.3).
 
 - [ ] **3.3 User-authored agents** · L
-  UI to create/tune `agents` rows; write tools with confirmation. *Depends on 2.3.*
+  UI to create/tune `agents` rows; write tools with confirmation. *Depends on 3.0.*
 
 ---
 
@@ -176,14 +244,13 @@ unchecked item, build it, check it off, update the relevant doc.
 ## Critical path (what unblocks what)
 
 ```
-1.2b reminders v2 ─► 1.2d polish ─► 1.2e inbox sort ─► 1.2f accountability loop
-1.2c voice ──────────── shipped (2026-06-30); device test pending
-1.2g feedback ritual ── (parallel after polish)
-1.1 service-role audit ─► multi-tenant ─► 1.3 memory ─► personalization
-1.2 feedback capture ─► 2.1 feedback digest
-1.4 token tracking ───► (feeds premium tiers & quotas everywhere)
-2.3 agent platform ───► per-user agents (user feedback theme)
-2.4 config home ──────► 4.1 atomic layout (optional)
+T-1..T-5 trust (done) ─► T-6 eval harness ─► every prompt change thereafter
+T-4 keep-alive ────────► external scheduler ─► T-7 server reminders · 2.4 Mirror · 2.6 digest
+2.0 person model ──────► 2.1 projects/links ─► 2.2 Librarian ─► 2.3 Steward
+2.0 person model ──────► 2.4 Mirror ─────────► 3.0 Researcher ─► 3.2 IdeaBox / 3.2b
+2.5 coordinator ───────► (budget/quiet/toggles gate every specialist)
+1.4 token tracking ────► (feeds premium tiers & quotas everywhere)
+2.7 config home ───────► 4.1 atomic layout (optional)
 ```
 
-**Next agent:** read [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) then start **1.2e** inbox sort.
+**Next agent:** read [`NEXT_AGENT_HANDOFF.md`](./NEXT_AGENT_HANDOFF.md) then start **T-6** (eval harness) and **2.0** (person model).

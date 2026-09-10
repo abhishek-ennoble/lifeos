@@ -21,7 +21,9 @@ Mark each row: **Pass** · **Fail** · **Skip** · **N/A**
 | F.6 | Reminder channel (sound) | `Remind me in 2 minutes to test` → wait | Push **with sound** (Reminders channel) | | |
 | F.7 | Ritual channel (silent) | Settings → morning nudge 2 min ahead → wait | Push arrives **silently** (Rituals channel) | | |
 | F.8 | Reminder quick-edit | Inbox → open pending entry with 🔔 | "In 1 hour" / "Tomorrow 9am" buttons work | | |
-| F.9 | Telemetry write-back | Fire a reminder → mark done → check Supabase `reminders` | `sent_at` + `acknowledged_at` populated | | |
+| F.9 | Telemetry write-back (D2 fix, 2026-09-10) | Set a 2-min reminder → **background the app** → let it fire → reopen app → check Supabase `reminders` | `sent_at` = the scheduled fire time (set on foreground reconcile); then tap Done → `acknowledged_at` set | | Pre-fix this was 0/12 because background fires never reached the app |
+| F.12 | Temporal grounding (T-2) | Capture "wake me up tomorrow at 6am" and "meditation starting next Monday" | First: reminder tomorrow 06:00 local, `due_at` null, correct year. Second: `metadata.start_at` set, `due_at` null, never shown as overdue | | |
+| F.13 | Home above the fold (F21) | Open Home on a phone | Greeting + capture box visible without scrolling; briefing shows one short paragraph with **More** | | |
 | F.10 | Today AI cost | Settings → AI usage | "Today" line shows per-day cost | | |
 | F.11 | Feedback statuses | Settings → App feedback | Old items show triaged/done, not all "new" | | |
 

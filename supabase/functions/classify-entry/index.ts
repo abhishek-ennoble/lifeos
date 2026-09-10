@@ -2,6 +2,7 @@ import { corsHeaders, handleCors, jsonResponse, getUserId } from '../_shared/cor
 import { logAiUsage, usageFromAnthropicResponse } from '../_shared/ai-usage.ts';
 import { appendMemoryToSystem, fetchMemorySummary } from '../_shared/memory.ts';
 import { createServiceClient } from '../_shared/service-client.ts';
+import { describeNow, resolveNow, resolveTimezone } from '../_shared/temporal.ts';
 
 const CLASSIFY_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -39,6 +40,16 @@ Rules:
 - Reminder + content → domain MUST be "task" with a specific title (subject of the reminder), NOT "note"
 - Bare "remind me in X" with no subject → still "task", title like "Reminder: {short snippet from input}"
 - Never use generic title "Reminder" alone — always include context from the input
+- Dates: due_at MUST be set whenever a deadline phrase appears ("by Friday", "before the 15th",
+  "until Monday", "deadline", "due", an exam date) — resolve it to an ISO8601 timestamp (end of that day
+  if no time is given). due_at is ONLY for deadlines.
+  When something BEGINS on a date ("starting 7th July", "from Monday", "wake up tomorrow at 6") set
+  metadata.start_at (ISO8601) — and remind_at if a reminder is implied — but leave due_at null.
+  A practice that starts on a date is never "overdue".
+- Dates: "due_at" is ONLY for a real deadline ("by Friday", "before the exam"). When a practice or
+  routine BEGINS on a date ("starting 7th July", "from Monday", "wake up at 6 tomorrow" as a habit),
+  set metadata.start_at (ISO8601) and leave due_at null — a start is not a deadline
+- A one-off wake-up/alarm-style ask ("make sure I wake up tomorrow at 6") → task with remind_at
 - Set priority "high" for health/medicine, "medium" default, "low" for vague future items
 - Include "life_area" (one of the five values above, or null)
 - Always return valid JSON. No prose, no explanation.
@@ -51,9 +62,15 @@ Multi-item input:
 - When only one item, still return { "items": [ single item ] }.
 ${ITEM_SCHEMA}`;
 
+interface TemporalInput {
+  now: Date;
+  timezone: string;
+}
+
 async function classifyWithClaude(
   rawInput: string,
   userId: string,
+  temporal: TemporalInput,
 ): Promise<Record<string, unknown>> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
@@ -62,7 +79,11 @@ async function classifyWithClaude(
 
   const supabase = createServiceClient();
   const memorySummary = await fetchMemorySummary(supabase, userId);
-  const system = appendMemoryToSystem(CLASSIFY_SYSTEM_PROMPT, memorySummary);
+  // Stable prompt first (cacheable), then per-user memory, then the volatile clock.
+  const system = `${appendMemoryToSystem(CLASSIFY_SYSTEM_PROMPT, memorySummary)}\n\n${describeNow(
+    temporal.now,
+    temporal.timezone,
+  )}`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -219,11 +240,45 @@ function normalizeReminderItem(item: Record<string, unknown>, rawInput: string):
   item.expires_at = null;
 }
 
+/**
+ * Guard against the model resolving a relative date into the past (the
+ * "wake up tomorrow" → 2025 bug). A due/start/remind timestamp more than a
+ * day before `now` is a hallucination, not the user's intent — drop it.
+ */
+function dropStaleTimestamps(item: Record<string, unknown>, now: Date): void {
+  const floor = now.getTime() - 24 * 60 * 60 * 1000;
+  const isStale = (value: unknown): boolean => {
+    if (typeof value !== 'string') {
+      return false;
+    }
+    const time = new Date(value).getTime();
+    return !Number.isNaN(time) && time < floor;
+  };
+
+  if (isStale(item.due_at)) {
+    item.due_at = null;
+  }
+  const meta =
+    item.metadata && typeof item.metadata === 'object'
+      ? (item.metadata as Record<string, unknown>)
+      : null;
+  if (meta) {
+    if (isStale(meta.remind_at)) {
+      delete meta.remind_at;
+    }
+    if (isStale(meta.start_at)) {
+      delete meta.start_at;
+    }
+  }
+}
+
 function normalizeClassifiedItem(
   item: Record<string, unknown>,
   rawInput: string,
+  now: Date,
 ): Record<string, unknown> {
   normalizeReminderItem(item, rawInput);
+  dropStaleTimestamps(item, now);
 
   if (item.domain === 'note' && !item.expires_at) {
     const hours =
@@ -254,16 +309,20 @@ function normalizeClassifiedItem(
   return item;
 }
 
-function extractItems(parsed: Record<string, unknown>, rawInput: string): Record<string, unknown>[] {
+function extractItems(
+  parsed: Record<string, unknown>,
+  rawInput: string,
+  now: Date,
+): Record<string, unknown>[] {
   if (Array.isArray(parsed.items) && parsed.items.length > 0) {
     return parsed.items
       .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
       .slice(0, 5)
-      .map((item) => normalizeClassifiedItem(item, rawInput));
+      .map((item) => normalizeClassifiedItem(item, rawInput, now));
   }
 
   if (parsed.domain) {
-    return [normalizeClassifiedItem(parsed, rawInput)];
+    return [normalizeClassifiedItem(parsed, rawInput, now)];
   }
 
   throw new Error('Invalid classification response');
@@ -326,14 +385,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
-    const { raw_input: rawInput } = await req.json();
+    const body = await req.json();
+    const rawInput = body?.raw_input;
     if (!rawInput || typeof rawInput !== 'string') {
       return jsonResponse({ error: 'raw_input is required' }, 400);
     }
 
+    // Client sends its clock + IANA zone so relative dates resolve in the
+    // user's world, not the server's. Both are optional and validated.
+    const temporal: TemporalInput = {
+      now: resolveNow(body?.client_now),
+      timezone: resolveTimezone(body?.timezone),
+    };
+
     const fastPath = buildFeedbackFastPath(rawInput) ?? buildIdeaFastPath(rawInput);
-    const parsed = fastPath ?? (await classifyWithClaude(rawInput, userId));
-    const items = extractItems(parsed, rawInput);
+    const parsed = fastPath ?? (await classifyWithClaude(rawInput, userId, temporal));
+    const items = extractItems(parsed, rawInput, temporal.now);
 
     return jsonResponse({ items });
   } catch (error) {

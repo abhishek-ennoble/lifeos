@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -17,7 +18,12 @@ import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { useProfile } from '@/hooks/useProfile';
 import { showCaptureSuccessToast } from '@/lib/capture-toast';
-import { selectRecentCaptures, selectToday, todayMeta } from '@/lib/entry-utils';
+import {
+  selectRecentCaptures,
+  selectToday,
+  startOfLocalDay,
+  todayMeta,
+} from '@/lib/entry-utils';
 import { greetingForHour } from '@/lib/greeting';
 import { requestNotificationPermissions } from '@/lib/notifications';
 
@@ -38,12 +44,39 @@ export default function HomeScreen() {
   const { staleCount } = useAntiEntropy();
   const { profile } = useProfile();
   const [brainDumpVisible, setBrainDumpVisible] = useState(false);
+  const [notificationsGranted, setNotificationsGranted] = useState(true);
 
   const today = useMemo(() => selectToday(entries, 3), [entries]);
-  const recentCaptures = useMemo(() => selectRecentCaptures(entries, 3), [entries]);
+  const recentCaptures = useMemo(() => {
+    const shownOnToday = new Set(today.map((entry) => entry.id));
+    return selectRecentCaptures(entries, 3, { exclude: shownOnToday, since: startOfLocalDay() });
+  }, [entries, today]);
+
+  // F21: the "Notifications" action is only useful until permission is granted.
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+    let active = true;
+    Notifications.getPermissionsAsync()
+      .then(({ status }) => {
+        if (active) {
+          setNotificationsGranted(status === 'granted');
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setNotificationsGranted(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const setupNotifications = async () => {
     const granted = await requestNotificationPermissions();
+    setNotificationsGranted(granted);
     Toast.show({
       type: granted ? 'success' : 'error',
       text1: granted ? 'Notifications enabled' : 'Permission denied',
@@ -59,7 +92,11 @@ export default function HomeScreen() {
           { paddingTop: insets.top + spacing.lg, paddingBottom: 140 },
         ]}>
         <View style={styles.topRow}>
-          <View style={{ flex: 1 }} />
+          <Text
+            style={[typography.display, styles.greeting, { color: colors.textPrimary }]}
+            numberOfLines={1}>
+            {greetingForHour(new Date().getHours(), profile.displayName)}
+          </Text>
           <Link href="/settings" asChild>
             <Pressable hitSlop={12} accessibilityLabel="Settings" style={styles.settingsButton}>
               <SymbolView
@@ -78,15 +115,17 @@ export default function HomeScreen() {
           </Link>
         </View>
 
-        <MorningBriefing
-          greeting={greetingForHour(new Date().getHours(), profile.displayName)}
-          briefing={briefing}
-          loading={briefingLoading}
-          onGenerate={() => void generateBriefing()}
-        />
-
+        {/* F21: capture is the first thing under the greeting — always above the fold. */}
         <View style={styles.captureSection}>
           <CaptureInput onSubmit={captureText} />
+        </View>
+
+        <View style={styles.briefingSection}>
+          <MorningBriefing
+            briefing={briefing}
+            loading={briefingLoading}
+            onGenerate={() => void generateBriefing()}
+          />
         </View>
 
         {recentCaptures.length > 0 ? (
@@ -201,11 +240,13 @@ export default function HomeScreen() {
             onPress={() => router.push('/chat')}
             color={colors.textSecondary}
           />
-          <SecondaryAction
-            label="Notifications"
-            onPress={() => void setupNotifications()}
-            color={colors.textSecondary}
-          />
+          {notificationsGranted ? null : (
+            <SecondaryAction
+              label="Notifications"
+              onPress={() => void setupNotifications()}
+              color={colors.textSecondary}
+            />
+          )}
         </View>
       </ScrollView>
 
@@ -251,8 +292,15 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 4,
+  },
+  greeting: {
+    flex: 1,
+  },
+  briefingSection: {
+    marginTop: 20,
   },
   settingsButton: {
     position: 'relative',
@@ -342,7 +390,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   captureSection: {
-    marginTop: 20,
+    marginTop: 12,
   },
   secondaryRow: {
     flexDirection: 'row',

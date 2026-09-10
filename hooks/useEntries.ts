@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DOMAINS, type Domain, type LifeArea } from '@/constants/domains';
 import { invokeFunction, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { cacheEntries, readCachedEntries, upsertCachedEntry } from '@/lib/sqlite';
+import { temporalContext } from '@/lib/temporal-context';
 import {
   buildReminderRows,
   cancelEntryReminders,
@@ -169,6 +170,7 @@ export function useEntries(domain?: Domain): UseEntriesResult {
       try {
         const response = await invokeFunction<ClassifyResponse>('classify-entry', {
           raw_input: rawInput,
+          ...temporalContext(),
         });
 
         const items = response.items ?? [];

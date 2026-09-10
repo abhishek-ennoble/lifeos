@@ -32,13 +32,28 @@ user per day, unique on `user_id,date`). All three have per-user RLS policies.
 ## Edge functions (`supabase/functions/*`)
 | Function | In | Out | Model |
 | --- | --- | --- | --- |
-| `classify-entry` | `{ raw_input }` | structured entry JSON (domain, title, priority, recurrence, due/expiry, life_area) | Claude Haiku 4.5 |
+| `classify-entry` | `{ raw_input, client_now?, timezone? }` | `{ items: [...] }` structured entries (domain, title, priority, recurrence, due/expiry, life_area, `metadata.start_at`) | Claude Haiku 4.5 |
 | `ai-chat` | `{ message, history }` | `{ reply }` — answers over user's pending entries (read-only) | Claude Sonnet 4.6 |
-| `morning-briefing` | `{}` | `{ content, date }`, upserts `briefings` | Claude Haiku 4.5 |
+| `morning-briefing` | `{ client_now?, timezone? }` | `{ content, date }` (date = user's local day; plain text, short first paragraph), upserts `briefings` | Claude Haiku 4.5 |
 | `anti-entropy` | `{}` | `{ stale_count, message, entries }` (pending task/learning/idea >30d stale) | none (DB query) |
 | `transcribe-audio` | `{ audio_base64, filename }` | `{ text }` | OpenAI Whisper-1 |
 
 Shared auth/CORS in `supabase/functions/_shared/cors.ts` (`getUserId` from JWT).
+
+**Temporal grounding** (`_shared/temporal.ts`, 2026-09-10): the client sends its clock
+and IANA zone (`lib/temporal-context.ts`); prompts that touch dates include
+`describeNow()`; "today" is `localDateString()` in the user's zone, never UTC.
+`metadata.start_at` = a practice begins (never overdue); `due_at` = deadline only.
+Timestamps resolved >24 h into the past are dropped as hallucinations.
+
+**Reminder telemetry** (`lib/reminder-sync.ts`): `reminders.sent_at/acknowledged_at`
+are written by the client. Background deliveries never reach the in-app "received"
+listener, so `reconcileFiredReminders()` runs on launch and every foreground and marks
+past-due unsent rows as sent; acknowledging falls back to a past-due unsent row.
+
+**Keep-alive / scheduler** (`.github/workflows/keep-alive.yml`): daily PostgREST +
+functions-gateway ping so the free-tier project never pauses (it did, Jul 28 – Sep 10).
+This is the seed of the external scheduler described in `INTELLIGENCE_DESIGN.md` §3.3.
 
 ## Secrets & config
 - **App `.env`** — only `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`

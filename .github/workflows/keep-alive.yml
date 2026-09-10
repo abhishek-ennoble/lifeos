@@ -1,0 +1,65 @@
+# Supabase free-tier projects auto-pause after ~7 days without API traffic.
+# That pause took LifeOS offline Jul 28 – Sep 10 2026. This job touches the
+# REST API daily so the project never idles. It is also the seed of the
+# Coordinator's external scheduler (docs/INTELLIGENCE_DESIGN.md §3.3, §7.1):
+# later steps will call scheduled edge functions from here.
+#
+# Required repository secrets (Settings → Secrets → Actions):
+#   SUPABASE_URL       e.g. https://<project-ref>.supabase.co
+#   SUPABASE_ANON_KEY  the public anon key (RLS still applies; this only proves liveness)
+
+name: keep-alive
+
+on:
+  schedule:
+    # Every day at 02:30 UTC (08:00 IST). Two runs a week would suffice;
+    # daily keeps the gap comfortably under the pause threshold.
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Touch the database through PostgREST
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY secrets are not set"
+            exit 1
+          fi
+          # Anonymous SELECT under RLS returns [] but still hits Postgres.
+          status=$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/briefings?select=id&limit=1")
+          echo "PostgREST responded ${status}"
+          if [ "${status}" != "200" ]; then
+            cat /tmp/body
+            exit 1
+          fi
+
+      - name: Touch the edge runtime
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          # Unauthenticated call is expected to be rejected (401) — that still
+          # proves the functions gateway is awake. Anything 5xx fails the job.
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${SUPABASE_URL}/functions/v1/anti-entropy")
+          echo "Functions gateway responded ${status}"
+          if [ "${status}" -ge 500 ]; then
+            exit 1
+          fi

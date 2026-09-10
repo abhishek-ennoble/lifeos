@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { localDateString, temporalContext } from '@/lib/temporal-context';
 import type { Briefing } from '@/types/entry';
 
 interface UseBriefingResult {
@@ -11,8 +12,9 @@ interface UseBriefingResult {
   generateBriefing: () => Promise<void>;
 }
 
+/** The user's calendar day (device zone), matching the server's `date` key. */
 function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 export function useBriefing(): UseBriefingResult {
@@ -66,7 +68,7 @@ export function useBriefing(): UseBriefingResult {
   const generateBriefing = useCallback(async () => {
     try {
       const { invokeFunction } = await import('@/lib/supabase');
-      await invokeFunction<{ content: string }>('morning-briefing', {});
+      await invokeFunction<{ content: string }>('morning-briefing', { ...temporalContext() });
       await refresh();
     } catch (err) {
       const message =

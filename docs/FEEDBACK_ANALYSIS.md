@@ -4,7 +4,8 @@ Iterative feedback → analysis → action. Re-run `node scripts/introspect-usag
 to refresh the data snapshot (`.discovery/introspection.json`, gitignored), then
 update this doc: mark items shipped, re-prioritize, append new rows.
 
-**Last analyzed:** 2026-07-27 · 19 feedback items (18 Abhishek + 1 Manish) · usage data Jun 23 – Jul 21
+**Last analyzed:** 2026-09-10 · 19 feedback items (18 Abhishek + 1 Manish) · usage data Jun 23 – Jul 27 ·
+Supabase restored after ~45-day pause (Jul 28 – Sep 10)
 
 ---
 
@@ -35,6 +36,8 @@ Product status: **open** / **partial** (some of it shipped) / **shipped** / **de
 | F18 | 07-20 | A | Share cards with friend/family (in-app like GDrive, or WhatsApp) | feature | **deferred** — sharing/delegation is Phase 2 platform per guardrails | Platform layer |
 | F19 | 07-21 | M | "App not working" — reported by Sanu, from another phone (bhaiya's) | bug | open — vague; needs repro. Related confirmed bug: hardcoded "Abhishek" greeting | P0 fix below |
 | F20 | 07-27 | A | Important item stale 15 days → research agent suggests concrete options (e.g. nearby ultrasound places) + related follow-ups; premium (token-heavy) | feature | recorded — roadmap 3.2b | 2.3 / 3.2b |
+| F21 | 09-10 | A | Home landing: briefing/greeting block is too long — user must scroll before capture; should be **short + collapsible** so dump is instant | ux | **shipped** (T-5, 2026-09-10) — capture first, briefing collapsed to first paragraph, server prompt short-first | ROADMAP T-5 |
+| F22 | 09-10 | A | IdeaBox: brain dumps that are productifiable (e.g. Swara Vigyan app) → multi-agent market scan, differentiation, evaluation, prototype; separate app? | strategy | recorded — **separate surface, shared substrate; build later** (design §8); Swara Vigyan captured as first candidate | ROADMAP 3.2 |
 
 ---
 
@@ -179,7 +182,11 @@ Product status: **open** / **partial** (some of it shipped) / **shipped** / **de
 | # | Finding | Evidence | Severity |
 |---|---------|----------|----------|
 | D1 | **Hardcoded "Abhishek"** shown to every user | `app/(tabs)/index.tsx` greeting + `lib/ai.ts` briefing prompt; Manish saw it | **P0** — breaks trust for any second user |
-| D2 | **Reminder loop produces no telemetry** | 10 cloud reminder rows, `sent_at`/`acknowledged_at` null on all | P1 — can't learn if reminders work |
+| D2 | **Reminder loop produces no telemetry** | 12 cloud reminder rows (incl. Jul 27 device tests), `sent_at`/`acknowledged_at` null on all | **Root-caused 2026-09-10:** `addNotificationReceivedListener` only fires in foreground → background deliveries never wrote `sent_at` → ack no-op'd. **Fixed** (T-1): reconcile on launch/foreground + ack fallback. Device-verify F.9 |
+| D8 | **Classifier had no clock** | "wake up tomorrow at 6" (Jun 30 2026) → `due_at: 2025-01-10`; cake "around 6pm" → `remind_at: null`; briefing "today" in UTC | **Fixed** (T-2/T-3, deployed, live-verified): `_shared/temporal.ts`, client sends `client_now` + `timezone`; `start_at` ≠ `due_at`; stale-timestamp guard |
+| D9 | **Fragments & duplicates** | 24/79 rows are fragments/duplicates of 6 thoughts (Mooladhar ×4, mantra ×3, Financial ×5, Discipline ×5, Ennoble ×5) | **P1 product** — Librarian (2.2) + projects/links (2.1) |
+| D10 | **User code ignored** | Jun 26 "code BD1 … recognize that to later make pattern" → follow-ups routed to expiring `note` | **P1** — person model `code` memory (2.0) |
+| D11 | **Briefing rendered markdown literally** | Stored Jul 27 briefing contains `**…**`; phone shows raw asterisks | **Fixed** (T-3): `stripMarkdown` server-side |
 | D3 | **Feedback pipeline has no closing loop** | all 19 items status `new`; nothing ever triaged | P1 — this doc + status updates are the fix |
 | D4 | **Memory/personalization at zero** | `user_memory` 0 rows, `user_preferences` 0 rows for both users | P1 — 1.3 tables shipped, nothing populates them (1.3b/2.2 pending) |
 | D5 | **Capture→closure gap** | 80% of entries pending; ideas: 21 captured, 0 done; capture rate decaying (18/day peak → 1–2/day) | **P0 product problem** — matches F7/F12–F14 |
@@ -208,21 +215,29 @@ Product status: **open** / **partial** (some of it shipped) / **shipped** / **de
 
 ---
 
-## 5. Prioritized next actions (recommendation, 2026-07-27)
+## 5. Prioritized next actions (re-ordered 2026-09-10, owner-approved "work on them")
 
-| Priority | Slice | Size | Why now |
-|----------|-------|------|---------|
-| **P0-a** | **Fix hardcoded name** — display name in `user_preferences` (or auth metadata) → greeting, briefing prompt; ask-once on first launch | S | Confirmed user-facing bug (F19/D1); prerequisite for any second user |
-| **P0-b** | **Feedback triage loop** — add `status` transitions in Settings feedback list (new→planned→shipped/declined); adopt this doc as the ritual | S | 19/19 items stuck at `new` (D3); makes every future iteration cheaper |
-| **P1** | **Triage & let-go slice v0** — weekly review flow: stale pending items surfaced → Keep / Done / Let go (archive with grace); reward on cleared inbox | M | Biggest data-backed product gap (D5) + richest feedback cluster (F7, F12–F14); it's the anti-entropy job reshaped by the user's own research |
-| **P2** | Reminder write-back — mark `sent_at`/`acknowledged_at` in cloud from the local loop | S | Unblocks learning whether reminders help (D2) |
-| **P2** | Small-UX batch: per-day cost, date-on-tap, reminder edit from inbox | S | Clears F5/F6/F11 cheaply |
-| **P3** | 1.3b pattern-learning job (fills `user_memory`) | M | Foundation for personalization; roadmap next-unchecked |
-| **P3** | Follow up with Manish for F19 repro details | — | "App not working" too vague to action beyond D1 fix |
+Order rationale: **trust the machine → know the person → organize → release → reflect → research.**
+Full mapping in `INTELLIGENCE_DESIGN.md` §2; roadmap Phases 1.6 → 2 → 3.
 
-**Explicitly not now:** agents (2.3) — the ask is real but foundation (triage loop,
-memory, telemetry) must land first; sharing (F18) — phase-gated; more voice
-investment (F16) — usage doesn't justify it yet.
+| Priority | Slice | Size | Status / why |
+|----------|-------|------|--------------|
+| **P0** | T-1 Reminder telemetry (D2) | S | ✅ fixed in code; **device-verify F.9** |
+| **P0** | T-2 Router temporal grounding (D8) | S | ✅ deployed, live-verified |
+| **P0** | T-3 Briefing in user's day + short-first + no markdown (D8, D11, F21) | S | ✅ deployed |
+| **P0** | T-4 Keep-alive workflow | S | ✅ written; **owner adds 2 repo secrets + pushes** |
+| **P0** | T-5 Home de-clutter (F21) | S | ✅ shipped |
+| **P0** | Re-open beta: new APK build with T-1…T-5, re-share to Manish + 1–2 friends | S | needs build (Claude Code) |
+| **P1** | T-6 Eval harness from own record | S | model variance observed during T-2 verification |
+| **P1** | 2.0 Person model + user codes (D4, D10, BD1) | M | `user_memory` still 0 rows; explicit ask |
+| **P1** | 2.1 Projects + links → 2.2 Librarian (D9, F7, F9) | M+M | 30 % redundancy |
+| **P1** | 2.3 Steward (D5, F7, F12–F14, F17-1) | M | 63 % pending — the missing soul |
+| **P2** | 2.4 Mirror (F10) · 2.5 Coordinator policies (F14d) · T-7 server reminders | M each | reflect + enforce standards |
+| **P3** | Follow up Manish on F19 repro | — | still vague |
+| **Later** | 3.0 Researcher (F1c, F3, F17-2, F20) · 3.2 IdeaBox (F22) · sharing (F18) · voice badge (F16) | L | on the substrate, premium |
+| **Deferred** | AWS/DynamoDB migration | L | only if Supabase can't sustain |
+
+**Shipped since last plan (Jul 27):** FB-1…FB-6; **today (Sep 10):** T-1…T-5.
 
 ---
 
@@ -233,3 +248,58 @@ investment (F16) — usage doesn't justify it yet.
 | 2026-07-27 | Initial analysis; 19 items inventoried; D1–D7 findings from usage introspection |
 | 2026-07-27 | F20 recorded (stale-item research agent, premium) → roadmap 3.2b. Friend Beta milestone added to ROADMAP (Phase 1.5) |
 | 2026-07-27 | Friend Beta FB-1…FB-6 shipped: name fix (D1), onboarding, briefing default, reminder telemetry (D2) + Android channel fix, per-day cost, reminder quick-edit. Backlog triaged via `scripts/triage-feedback.mjs`: 17 → triaged, F4/F8 → done (D3 closed). Briefing/chat deployed; verified briefing says "Morning, Abhishek" |
+| 2026-09-10 | Post-pause introspection (`--all`): 2 real users, 0 activity Jul 28–Sep 10. Beta verdict **inconclusive** (see §7). D2 **still open** — 12 reminder rows, 0 sent/ack even after Jul 27 device tests. D5 worsened: 50/79 pending (63%). Committed uncommitted FB work (`418fbad`). |
+| 2026-09-10 | Owner verbal: app unusable last few days (Supabase pause confirmed). Abhishek + Manish on 1.1.0. **F21** recorded: Home briefing too long — collapsible summary, capture above fold. **Do not fix this session** — next agent handoff. |
+| 2026-09-10 | Owner: "evaluate all my feedbacks, re-order, work on them." Re-ordered (§5) and shipped T-1…T-5: D2 root cause + fix, temporal grounding (deployed), briefing tz/short-first/no-markdown (deployed), keep-alive workflow, F21 Home. F22 (IdeaBox) recorded; Swara Vigyan idea captured into owner's account. ROADMAP restructured (Phase 1.6 + specialists). |
+| 2026-09-10 | Owner reframed goal: intelligence + operational design + feedback loop toward a coordinator + specialist-agent system; original pain = things lost/unactioned for months + redundant data (household, wealth, creative, product ideas). Close re-read of raw record → `INTELLIGENCE_DESIGN.md`: every F/D item mapped to an agent owner (§2); new findings — 30 % of rows are fragments/duplicates of 6 thoughts; areas enum misses household/pet/work/community/society; explicit "learn my code BD1" ask (Jun 26) went to expiring notes; **classifier has no current date** (→ `due_at: 2025-01-10` on "wake up tomorrow"); briefing "today" in UTC. |
+
+---
+
+## 8. Feedback → agent ownership
+
+Every item above is classified into the coordinator + specialist design in
+[`INTELLIGENCE_DESIGN.md` §2](./INTELLIGENCE_DESIGN.md#2-feedback--agent-ownership-map)
+(principle / coordinator policy / specialist capability / UI / infra, with phase).
+Net read: three principles to adopt now (F10a, F13c, F15), two bugs now (temporal
+grounding, D2), and the bulk of asks land on **Librarian** (organize) and **Steward**
+(release) before any **Researcher**.
+
+---
+
+## 7. Beta verdict (2026-09-10) — Phase 1.5 FB-7 measurement
+
+**Context:** Supabase project paused ~Jul 28; restored Sep 10. No cloud data Jul 28 – Sep 10.
+Manish last sign-in **Jul 18** (before 1.1.0 build Jul 27). Abhishek last activity **Jul 27** (build + device test day).
+
+### Success criteria scorecard
+
+| Criterion | Abhishek | Manish | Notes |
+|-----------|----------|--------|-------|
+| 3+ active days in week 1 | ✅ 18 total | ❌ 2 days (Jun 30, Jul 21) | Manish never returned after Jul 21 |
+| ≥1 real capture | ✅ 79 entries | ✅ 8 entries | Manish's mostly test notes; 1 real learning goal (Vedanta) |
+| ≥1 reminder acknowledged | ❌ 0/11 telemetry | ❌ 0/1 telemetry | **D2 still broken or untested on 1.1.0** — Jul 27 reminders marked done but `sent_at`/`acknowledged_at` null |
+| Knows `fb:` feedback | ✅ 18 items | ✅ 1 item (F19) | Feedback pipeline works |
+
+**Verdict: INCONCLUSIVE** — not a product failure, not a product success. Interrupted by infra pause + single sparse friend tester + Manish never got 1.1.0 fix.
+
+### What the data says (dharmic read — signal over noise)
+
+| Class | Signal | Action |
+|-------|--------|--------|
+| **Artha (sustainability)** | Backend paused 45 days; $0.30/mo AI cost | Keep-alive cron on Supabase **now**; AWS/DynamoDB migration **only if** Supabase can't sustain friend beta |
+| **Dharma (purpose)** | Capture works; closure doesn't — 63% pending, ideas 21→0 done | **Let-go/triage slice** is the next product move, not more capture features |
+| **Kama (delight)** | Briefing quality good ("Morning, Abhishek" personalized Jul 27); journal used deeply (birthday entry) | Keep briefing + journal; don't add UI chrome before closure loop |
+| **Moksha (release)** | F7/F12–F14 cluster + your own research on collector's fallacy | Weekly review: Keep / Done / Let go — this IS the app's missing soul |
+
+### Infra note (AWS/DynamoDB)
+
+Current stack is **Supabase Postgres**, not DynamoDB. Migration to ennoble AWS is a **Phase 2+ platform decision** —
+only worth it when: (a) Supabase cost/pause becomes recurring pain, or (b) ennoble platform needs unified auth/data.
+**Do not migrate before product validates.** Fix pause with keep-alive first.
+
+### Owner answers (2026-09-10, verbal)
+
+1. **What broke:** App unusable for the last few days — **confirmed Supabase pause** (capture/AI dead until restore).
+2. **Who got 1.1.0:** Abhishek + Manish installed. F19 "app not working" repro still unknown.
+3. **New feedback (F21):** Home landing has a very long read (briefing/greeting); should be **small + collapsible** so user can dump immediately without scrolling. **Deferred to next build slice** — not in current session scope.
+4. **Still open:** Jul 27 reminder sound + telemetry write-back (D2) — verify on device when testing resumes.

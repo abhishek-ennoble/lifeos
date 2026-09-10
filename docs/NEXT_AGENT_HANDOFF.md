@@ -1,8 +1,62 @@
-# Next agent handoff — LifeOS (2026-07-27)
+# Next agent handoff — LifeOS (2026-09-10)
 
 **Read this first**, then [`ROADMAP.md`](./ROADMAP.md) for ordered backlog.
 
-## Latest session (2026-07-27) — Friend Beta (Phase 1.5)
+## Latest session (2026-09-10) — Beta measurement + infra recovery
+
+Supabase project was **INACTIVE ~Jul 28 – Sep 10** (free-tier auto-pause). Restored Sep 10.
+Ran `node scripts/introspect-usage.mjs --all` + `verify-friend-release` (18/18 pass).
+Committed six weeks of uncommitted Friend Beta work (`418fbad`).
+
+**Beta verdict: INCONCLUSIVE** — see `FEEDBACK_ANALYSIS.md` §7. Manish never got 1.1.0
+(last sign-in Jul 18). Reminder telemetry still 0/12 sent/ack (D2 — verify on device).
+63% entries pending (50/79) — capture→closure gap is the #1 product problem.
+
+**Do first:** (1) Supabase keep-alive cron, (2) re-run beta on 1.1.0 APK, (3) verify D2,
+(4) build let-go/triage slice. **Do not** migrate to AWS/DynamoDB yet.
+
+### Session 2026-09-10 (late afternoon) — "re-order and work on them" → T-1…T-5 shipped
+
+Owner approved working the backlog; defaults taken for design §7. Shipped (all typecheck ✅,
+vitest 24/24 ✅, service-role audit ✅):
+
+| Slice | What | Verify |
+|---|---|---|
+| T-1 | **D2 root cause**: foreground-only listener → `reconcileFiredReminders()` on launch/foreground + ack fallback (`lib/reminder-sync.ts`, `-core.ts`, `NotificationRouter`) | device F.9 |
+| T-2 | **Temporal grounding** in `classify-entry` (`_shared/temporal.ts`; client `lib/temporal-context.ts`); `start_at` vs `due_at`; stale guard — **deployed, live-verified** | F.12 |
+| T-3 | **Briefing**: user-tz date/window, `starting_soon`, short-first prompt, `stripMarkdown` — **deployed** | F.13 |
+| T-4 | `.github/workflows/keep-alive.yml` — **owner must add repo secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY` and push** | Actions tab |
+| T-5 | **F21 Home**: greeting in header, capture first, collapsible briefing (`lib/briefing-preview.ts`), Just-captured = today ∖ Today, Notifications hidden when granted | F.13 |
+
+Also: Swara Vigyan idea inserted into owner's account (idea, thread "Swara Vigyan",
+`ideabox_candidate: true`); F22 recorded. **Not done:** new APK build (needs Gradle — Claude
+Code), T-6 eval harness, 2.0 person model. **Next:** T-6 + 2.0 (ROADMAP Phase 1.6/2).
+
+### Intelligence design (2026-09-10, afternoon)
+
+Owner reframed the next arc: coordinator + specialist agents, grounded in the original
+pain (lost/unactioned for months, redundant data across household/wealth/creative/ideas)
+and a dharmic aim (the app must expand awareness, not just track). Full design in
+[`INTELLIGENCE_DESIGN.md`](./INTELLIGENCE_DESIGN.md): deterministic Coordinator; specialists
+Router · Librarian · Timekeeper · Mirror · Steward · Researcher · Builder; person model,
+`projects`/`entry_links`/`proposals` substrate; eval harness from the owner's own record;
+proposed phasing in §6 (**ROADMAP not yet updated — awaiting owner approval**). Two bugs
+found in the re-read: classifier lacks current date/tz (`due_at: 2025-01-10`), briefing
+date is UTC.
+
+### Owner update (2026-09-10, verbal)
+
+- **Outage confirmed:** Abhishek could not use the app for the last few days — matches Supabase
+  INACTIVE pause (~Jul 28 – Sep 10). Root fix = keep-alive before any new feature work.
+- **1.1.0 installs:** Abhishek + Manish both on this build (Manish cloud last-sign-in Jul 18
+  may predate reinstall — confirm with him if issues persist).
+- **F21 — Home landing too long (DO NOT skip):** Briefing/greeting on Home pushes capture below
+  the fold. User wants **short preview + tap-to-expand/collapse** so dump is instant. Maps to
+  `MorningBriefing.tsx` + Home layout. Batch with P2 de-clutter; **not fixed in Sep 10 session.**
+
+---
+
+## Prior session (2026-07-27) — Friend Beta (Phase 1.5)
 
 Introspected real usage (`scripts/introspect-usage.mjs` → `.discovery/`, gitignored),
 analyzed all 19 feedback items (`docs/FEEDBACK_ANALYSIS.md` — living triage doc),
