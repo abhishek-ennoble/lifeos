@@ -24,6 +24,7 @@ Mark each row: **Pass** · **Fail** · **Skip** · **N/A**
 | F.9 | Telemetry write-back (D2 fix, 2026-09-10) | Set a 2-min reminder → **background the app** → let it fire → reopen app → check Supabase `reminders` | `sent_at` = the scheduled fire time (set on foreground reconcile); then tap Done → `acknowledged_at` set | | Pre-fix this was 0/12 because background fires never reached the app |
 | F.12 | Temporal grounding (T-2) | Capture "wake me up tomorrow at 6am" and "meditation starting next Monday" | First: reminder tomorrow 06:00 local, `due_at` null, correct year. Second: `metadata.start_at` set, `due_at` null, never shown as overdue | | |
 | F.13 | Home above the fold (F21) | Open Home on a phone | Greeting + capture box visible without scrolling; briefing shows one short paragraph with **More** | | |
+| F.14 | Forgot password (F27, next build) | Log out → Sign in → tap **Forgot password?** → enter email | "Check your email" shown; reset link arrives; can set new password and sign in | | |
 | F.10 | Today AI cost | Settings → AI usage | "Today" line shows per-day cost | | |
 | F.11 | Feedback statuses | Settings → App feedback | Old items show triaged/done, not all "new" | | |
 

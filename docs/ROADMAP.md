@@ -153,6 +153,20 @@ unchecked item, build it, check it off, update the relevant doc.
 
 ---
 
+## Phase 1.7 — Next build polish (queued 2026-09-10)
+
+Small fixes to bundle with the next APK (follow-ups UI + share-intent when ready):
+
+- [ ] **1.7a Forgot password (F27)** · S · **[Cursor]**
+  `AuthGate`: "Forgot password?" on sign-in → `supabase.auth.resetPasswordForEmail(email)`
+  → inline "Check your email" confirmation; no dead-end when logged out. Verify Supabase
+  Auth redirect URL / deep link for the reset link on Android.
+
+- [ ] **1.7b APK: follow-ups + auth fix** · S · **[Claude Code]**
+  Bump version; `gradlew assembleRelease`; device-test F.9/F.12/F.13 + sign-in recovery.
+
+---
+
 ## Phase 2 — Specialists (organize → release → reflect), then the true agent
 
 > Per-job specialists, not per-domain personas (`INTELLIGENCE_DESIGN.md` §3.5).
@@ -175,11 +189,13 @@ unchecked item, build it, check it off, update the relevant doc.
   auto-link exact dupes (<24 h), `proposals` for the rest; inbox "×N" card.
   Addresses the 30 % fragment/duplicate rate (F7, F9).
 
-- [ ] **2.3 Steward v0 (release)** · M · **[Cursor]** + **[Claude Code]**
+- [ ] **2.3 Steward v0 (release + drive)** · M · **[Cursor]** + **[Claude Code]**
   Weekly review pack: Keep / Done / Schedule / Let go / Ask for help; Eisenhower +
   staleness + collector's-fallacy selection (deterministic); one Haiku line per item in
   witness voice; calm cleared-state screen. Reshapes `anti-entropy`.
-  (F7, F12a/d, F13a/d, F14b/f, F17 stage 1, D5.)
+  **F28 (drive):** briefing + Steward each propose exactly **one** next right action with
+  the reason it matters — help the owner *do* the good thing, not just see it.
+  (F7, F12a/d, F13a/d, F14b/f, F17 stage 1, D5, F28.)
 
 - [ ] **2.4 Mirror (reflect)** · M · **[Claude Code]**
   Nightly pattern extraction → person model; weekly/monthly reflection digest (F10b);
